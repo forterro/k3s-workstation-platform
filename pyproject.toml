@@ -1,5 +1,5 @@
 # Project metadata and tooling for the k3s workstation platform bootstrap generator.
-# Managed with uv. License is intentionally left unset until chosen (see README open items).
+# Managed with uv.
 
 [project]
 name = "k3s-workstation-platform"
@@ -7,6 +7,8 @@ version = "0.1.0"
 description = "Imperative seed bootstrap generator for the k3s AI workstation platform"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "Olivier Gintrand" }]
 dependencies = [
     "pyyaml>=6.0.2",

@@ -1,4 +1,4 @@
-.PHONY: sync lint format test preflight bootstrap
+.PHONY: sync lint format test preflight bootstrap reset
 
 sync:
 	uv sync
@@ -17,3 +17,6 @@ preflight:
 
 bootstrap:
 	uv run k3s-workstation-bootstrap bootstrap
+
+reset:
+	uv run k3s-workstation-bootstrap reset

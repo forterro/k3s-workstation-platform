@@ -16,6 +16,7 @@ from . import command, console
 
 KUBECONFIG = Path("/etc/rancher/k3s/k3s.yaml")
 INSTALL_URL = "https://get.k3s.io"
+UNINSTALL_SCRIPT = Path("/usr/local/bin/k3s-uninstall.sh")
 
 K3S_EXEC_FLAGS = (
     "--flannel-backend=none",
@@ -67,3 +68,19 @@ def ensure_k3s(dry_run: bool = False) -> None:
     )
     _wait_api()
     console.ok("k3s installed and API ready")
+
+
+def uninstall(dry_run: bool = False) -> None:
+    """Completely remove k3s and its cluster state via the k3s uninstall script."""
+    if not UNINSTALL_SCRIPT.exists():
+        console.warn(f"k3s uninstall script not found ({UNINSTALL_SCRIPT}); nothing to reset")
+        return
+    if dry_run:
+        console.sub(f"would run {UNINSTALL_SCRIPT} (removes the cluster and all workloads)")
+        return
+    console.step("Removing k3s (cluster and all workloads)")
+    cmd = [str(UNINSTALL_SCRIPT)]
+    if os.geteuid() != 0:
+        cmd = ["sudo", *cmd]
+    command.run(cmd)
+    console.ok("k3s removed")

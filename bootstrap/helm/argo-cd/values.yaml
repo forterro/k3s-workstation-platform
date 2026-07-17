@@ -1,9 +1,13 @@
-# ArgoCD values for a single-node local workstation. TLS termination is handled later by the
-# ingress; the server runs in insecure mode behind it for local access.
+# ArgoCD values for a single-node local workstation. Minimal footprint: dex (SSO) and the
+# notifications controller are disabled. The server runs in insecure mode behind a local ingress.
 argo-cd:
   configs:
     params:
       server.insecure: true
+  dex:
+    enabled: false
+  notifications:
+    enabled: false
   controller:
     replicas: 1
   server:

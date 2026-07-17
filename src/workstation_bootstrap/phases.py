@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from . import apply, console, k3s, render, tools
+from . import console, helm, k3s, tools
 
 
 class PhaseError(RuntimeError):
@@ -44,15 +44,13 @@ def _apply_seed_chart(context: Context, *, brick: str, namespace: str, release: 
     chart = context.root / "bootstrap" / "helm" / brick
     if not chart.exists():
         raise PhaseError(f"seed chart not found: {chart}")
-    render.update_dependencies(chart)
-    manifests = render.render_chart(
+    helm.update_dependencies(chart)
+    helm.install(
         chart,
         release=release,
         namespace=namespace,
         values=_seed_values(context.root, brick),
     )
-    apply.ensure_namespace(namespace)
-    apply.apply_manifests(manifests)
 
 
 PHASE_PLAN: tuple[Phase, ...] = (

@@ -28,6 +28,18 @@ The bootstrap installs any missing or outdated CLI tools itself, pinned in `tool
 
 ## Quickstart
 
+On a fresh Ubuntu, install the prerequisites and clone the repository:
+
+```bash
+sudo apt-get update && sudo apt-get install -y git curl
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+git clone https://github.com/forterro/k3s-workstation-platform.git
+cd k3s-workstation-platform
+```
+
+Then create the environment and run the bootstrap:
+
 ```bash
 uv sync                                                 # create the locked environment
 uv run k3s-workstation-bootstrap preflight              # report host and tooling status
@@ -54,17 +66,26 @@ as a throwaway, named distribution and discard it afterwards:
 
 ```powershell
 # import a base rootfs (download the latest Ubuntu LTS WSL rootfs, or `wsl --export` an existing distro)
-wsl --import k3s-test C:\wsl\k3s-test ubuntu-lts-wsl.rootfs.tar.gz
-wsl -d k3s-test
+wsl.exe --install Ubuntu-26.04
+wsl -d Ubuntu-26.04
 # enable systemd, then restart the distro:
 #   printf '[boot]\nsystemd=true\n' | sudo tee /etc/wsl.conf
 #   wsl --shutdown
 # run the quickstart inside, then discard everything:
-wsl --unregister k3s-test
+wsl --unregister Ubuntu-26.04
 ```
 
 On a non-WSL Ubuntu host, Canonical Multipass gives a throwaway VM (`multipass launch`,
 `multipass delete --purge`).
+
+## Reset
+
+To completely remove k3s and its cluster from a distribution (without discarding the distribution),
+for example to re-run the bootstrap from a clean state:
+
+```bash
+uv run k3s-workstation-bootstrap reset
+```
 
 ## Repository layout
 
@@ -87,7 +108,10 @@ make format    # ruff format
 make test      # pytest
 ```
 
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
+
 ## Open items
 
-- Choose and add a license before public distribution.
 - CI workflows (gitflow, quality gates, changelog gate) are added in a dedicated increment.

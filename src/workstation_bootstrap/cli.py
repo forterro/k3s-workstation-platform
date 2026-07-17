@@ -6,7 +6,7 @@ import argparse
 import sys
 from collections.abc import Sequence
 
-from . import __version__, console, preflight
+from . import __version__, console, k3s, preflight
 from .config import find_repo_root
 from .phases import Context, run_bootstrap
 
@@ -35,6 +35,13 @@ def _build_parser() -> argparse.ArgumentParser:
     bootstrap_parser.add_argument(
         "--dry-run", action="store_true", help="List the planned phases without applying"
     )
+
+    reset_parser = subparsers.add_parser(
+        "reset", help="Completely remove k3s and its cluster (k3s-uninstall)"
+    )
+    reset_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be removed"
+    )
     return parser
 
 
@@ -51,6 +58,12 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     return 0 if run_bootstrap(context) else 1
 
 
+def _cmd_reset(args: argparse.Namespace) -> int:
+    console.banner("k3s workstation reset")
+    k3s.uninstall(dry_run=args.dry_run)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -59,6 +72,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _cmd_preflight(args)
     if args.command == "bootstrap":
         return _cmd_bootstrap(args)
+    if args.command == "reset":
+        return _cmd_reset(args)
 
     parser.print_help()
     return 2
