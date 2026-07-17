@@ -114,10 +114,7 @@ def _install_helm(bin_dir: Path) -> None:
 
 def _install_sops(bin_dir: Path) -> None:
     tag = pinned_version("sops")
-    url = (
-        f"https://github.com/getsops/sops/releases/download/"
-        f"{tag}/sops-{tag}.linux.{ARCH}"
-    )
+    url = f"https://github.com/getsops/sops/releases/download/{tag}/sops-{tag}.linux.{ARCH}"
     with tempfile.TemporaryDirectory() as tmp:
         binary = Path(tmp) / "sops"
         _download(url, binary)
@@ -127,8 +124,7 @@ def _install_sops(bin_dir: Path) -> None:
 def _install_age(bin_dir: Path) -> None:
     tag = pinned_version("age")
     url = (
-        f"https://github.com/FiloSottile/age/releases/download/"
-        f"{tag}/age-{tag}-linux-{ARCH}.tar.gz"
+        f"https://github.com/FiloSottile/age/releases/download/{tag}/age-{tag}-linux-{ARCH}.tar.gz"
     )
     with tempfile.TemporaryDirectory() as tmp:
         tarball = Path(tmp) / "age.tar.gz"
@@ -141,10 +137,7 @@ def _install_age(bin_dir: Path) -> None:
 def _install_step(bin_dir: Path) -> None:
     tag = pinned_version("step")
     ver = tag.lstrip("v")
-    url = (
-        f"https://github.com/smallstep/cli/releases/download/"
-        f"{tag}/step_linux_{ver}_{ARCH}.tar.gz"
-    )
+    url = f"https://github.com/smallstep/cli/releases/download/{tag}/step_linux_{ver}_{ARCH}.tar.gz"
     with tempfile.TemporaryDirectory() as tmp:
         tarball = Path(tmp) / "step.tar.gz"
         _download(url, tarball)

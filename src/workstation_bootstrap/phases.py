@@ -6,6 +6,7 @@ depends on the previous one.
 
 from __future__ import annotations
 
+import base64
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,6 +14,11 @@ from functools import partial
 from pathlib import Path
 
 from . import command, console, helm, k3s, settings, tools
+
+_STEP_CA_NAMESPACE = "step-ca"
+_STEP_CA_ISSUER_NAME = "step-ca-acme"
+_STEP_CA_ACME_SERVER = "https://step-ca.step-ca.svc.cluster.local/acme/acme/directory"
+_STEP_CA_INGRESS_CLASS = "traefik"
 
 
 class PhaseError(RuntimeError):
@@ -49,19 +55,32 @@ def _kubectl_apply(manifest: str, env: dict[str, str]) -> None:
     command.run(["kubectl", "apply", "-f", "-"], input_text=manifest, env=env)
 
 
+def _apply_namespace(name: str, env: dict[str, str]) -> None:
+    manifest = command.run(
+        ["kubectl", "create", "namespace", name, "--dry-run=client", "-o", "yaml"],
+        capture=True,
+        env=env,
+    ).stdout
+    _kubectl_apply(manifest, env)
+
+
+def _apply_generated(create_args: list[str], env: dict[str, str]) -> None:
+    manifest = command.run(
+        [*create_args, "--dry-run=client", "-o", "yaml"],
+        capture=True,
+        env=env,
+    ).stdout
+    _kubectl_apply(manifest, env)
+
+
 def _ensure_sops_age_secret(context: Context) -> None:
     """Publish the local age key as the argocd/sops-age secret consumed by the KSOPS plugin."""
     key_path = tools.age_key_path()
     if not key_path.exists():
         raise PhaseError(f"age key not found: {key_path}")
     env = _kubectl_env()
-    namespace = command.run(
-        ["kubectl", "create", "namespace", "argocd", "--dry-run=client", "-o", "yaml"],
-        capture=True,
-        env=env,
-    ).stdout
-    _kubectl_apply(namespace, env)
-    secret = command.run(
+    _apply_namespace("argocd", env)
+    _apply_generated(
         [
             "kubectl",
             "create",
@@ -71,15 +90,110 @@ def _ensure_sops_age_secret(context: Context) -> None:
             "--namespace",
             "argocd",
             f"--from-file=keys.txt={key_path}",
-            "--dry-run=client",
-            "-o",
-            "yaml",
         ],
-        capture=True,
-        env=env,
-    ).stdout
-    _kubectl_apply(secret, env)
+        env,
+    )
     console.ok("sops-age secret ensured in the argocd namespace")
+
+
+def _ensure_local_ca(context: Context) -> Path:
+    """Generate the workstation CA locally if absent and return its directory."""
+    ca = settings.ca_dir()
+    if (ca / "root_ca.crt").exists():
+        console.ok(f"CA present: {ca}")
+        return ca
+    script = context.root / "scripts" / "generate-ca.sh"
+    if not script.exists():
+        raise PhaseError(f"CA generator not found: {script}")
+    console.step("Generating the workstation CA")
+    command.run(["bash", str(script)])
+    if not (ca / "root_ca.crt").exists():
+        raise PhaseError(f"CA generation produced no material in {ca}")
+    return ca
+
+
+def _clusterissuer_manifest(ca: Path) -> str:
+    ca_bundle = base64.b64encode((ca / "root_ca.crt").read_bytes()).decode("ascii")
+    return (
+        "apiVersion: cert-manager.io/v1\n"
+        "kind: ClusterIssuer\n"
+        f"metadata:\n  name: {_STEP_CA_ISSUER_NAME}\n"
+        "spec:\n"
+        "  acme:\n"
+        f"    server: {_STEP_CA_ACME_SERVER}\n"
+        f"    caBundle: {ca_bundle}\n"
+        "    privateKeySecretRef:\n"
+        f"      name: {_STEP_CA_ISSUER_NAME}-account-key\n"
+        "    solvers:\n"
+        "      - http01:\n"
+        "          ingress:\n"
+        f"            ingressClassName: {_STEP_CA_INGRESS_CLASS}\n"
+    )
+
+
+def _phase_step_ca_material(context: Context) -> None:
+    """Generate (if absent) and apply the local CA material and the ACME ClusterIssuer."""
+    ca = _ensure_local_ca(context)
+    env = _kubectl_env()
+    _apply_namespace(_STEP_CA_NAMESPACE, env)
+    _apply_generated(
+        [
+            "kubectl",
+            "create",
+            "configmap",
+            "step-ca-certs",
+            "--namespace",
+            _STEP_CA_NAMESPACE,
+            f"--from-file=root_ca.crt={ca / 'root_ca.crt'}",
+            f"--from-file=intermediate_ca.crt={ca / 'intermediate_ca.crt'}",
+        ],
+        env,
+    )
+    _apply_generated(
+        [
+            "kubectl",
+            "create",
+            "configmap",
+            "step-ca-config",
+            "--namespace",
+            _STEP_CA_NAMESPACE,
+            f"--from-file=ca.json={ca / 'ca.json'}",
+        ],
+        env,
+    )
+    _apply_generated(
+        [
+            "kubectl",
+            "create",
+            "secret",
+            "generic",
+            "step-ca-secrets",
+            "--namespace",
+            _STEP_CA_NAMESPACE,
+            "--type",
+            "smallstep.com/private-keys",
+            f"--from-file=root_ca_key={ca / 'root_ca_key'}",
+            f"--from-file=intermediate_ca_key={ca / 'intermediate_ca_key'}",
+        ],
+        env,
+    )
+    _apply_generated(
+        [
+            "kubectl",
+            "create",
+            "secret",
+            "generic",
+            "step-ca-ca-password",
+            "--namespace",
+            _STEP_CA_NAMESPACE,
+            "--type",
+            "smallstep.com/ca-password",
+            f"--from-file=password={ca / 'ca.pass'}",
+        ],
+        env,
+    )
+    _kubectl_apply(_clusterissuer_manifest(ca), env)
+    console.ok("step-ca material and ClusterIssuer applied")
 
 
 def _phase_argocd(context: Context) -> None:
@@ -121,6 +235,11 @@ PHASE_PLAN: tuple[Phase, ...] = (
             namespace="cert-manager",
             release="cert-manager",
         ),
+    ),
+    Phase(
+        "step-ca-material",
+        "Generate and apply the local CA material and ClusterIssuer",
+        _phase_step_ca_material,
     ),
     Phase("argocd", "Install ArgoCD with the KSOPS plugin", _phase_argocd),
     Phase("root-app", "Apply the ArgoCD root app-of-apps", _phase_root_app),

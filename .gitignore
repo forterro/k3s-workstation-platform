@@ -25,6 +25,11 @@ keys.txt
 .env
 .env.*
 
+# CA material is generated locally under ~/.k3s-workstation-platform/ca and must never be committed
+umbrella-charts/core-stack/step-ca/files/
+**/*_ca_key
+**/ca.pass
+
 # Editor / OS
 .DS_Store
 *.swp

@@ -14,8 +14,14 @@ from . import command, console
 
 CONFIG_DIR = Path.home() / ".k3s-workstation-platform"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
+CA_DIR = CONFIG_DIR / "ca"
 DEFAULT_REPO_URL = "https://github.com/forterro/k3s-workstation-platform.git"
 DEFAULT_REVISION = "main"
+
+
+def ca_dir() -> Path:
+    """Local directory holding the workstation CA material (never committed to git)."""
+    return CA_DIR
 
 
 def _detect_repo_url(root: Path) -> str | None:

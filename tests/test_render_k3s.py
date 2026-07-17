@@ -17,9 +17,7 @@ def test_install_exec_keeps_flannel_defaults() -> None:
     assert "--disable-kube-proxy" not in exec_line
 
 
-def test_uninstall_without_script_is_noop(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_uninstall_without_script_is_noop(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(k3s, "UNINSTALL_SCRIPT", tmp_path / "missing.sh")
 
     def _fail(*_args: object, **_kwargs: object) -> None:

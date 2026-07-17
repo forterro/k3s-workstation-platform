@@ -39,9 +39,7 @@ def _build_parser() -> argparse.ArgumentParser:
     reset_parser = subparsers.add_parser(
         "reset", help="Completely remove k3s and its cluster (k3s-uninstall)"
     )
-    reset_parser.add_argument(
-        "--dry-run", action="store_true", help="Show what would be removed"
-    )
+    reset_parser.add_argument("--dry-run", action="store_true", help="Show what would be removed")
     return parser
 
 

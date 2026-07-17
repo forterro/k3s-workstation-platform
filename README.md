@@ -54,7 +54,8 @@ uv run k3s-workstation-bootstrap bootstrap              # deploy
 1. Installs any missing or outdated CLI tools into `/usr/local/bin` (sudo).
 2. Generates a local age key for SOPS if none exists.
 3. Installs and starts k3s (flannel CNI, Traefik disabled) (sudo, systemd service).
-4. Applies the seed: cert-manager and ArgoCD, including the root app-of-apps.
+4. Applies the seed: cert-manager, the local CA material (generated on first run) and its ACME
+   ClusterIssuer, then ArgoCD and the root app-of-apps.
 
 ArgoCD then tracks the git repository set in `rootApp` (`bootstrap/helm/root-app/values.yaml`) and
 reconciles the child Applications under `apps/`.
@@ -82,15 +83,14 @@ kubectl -n argocd port-forward svc/argocd-server 8080:443
 ## Certificates and local access
 
 The platform runs an internal ACME certificate authority (step-ca) and issues TLS certificates
-through cert-manager. Generate the CA once, before the first bootstrap:
+through cert-manager. The CA material is generated locally, kept under
+`~/.k3s-workstation-platform/ca`, and never committed to git. The bootstrap generates it on first
+run (if absent) and applies the CA ConfigMaps, Secrets and the ACME ClusterIssuer to the cluster;
+the step-ca workload consumes them. To rotate the CA:
 
 ```bash
-make generate-ca
+FORCE=1 make generate-ca
 ```
-
-This writes the public CA material to `umbrella-charts/core-stack/step-ca/files/` and the encrypted
-private material to `secrets/step-ca/` (SOPS/age). Commit both so ArgoCD can reconcile step-ca; the
-KSOPS plugin on the ArgoCD repo-server decrypts the secrets in-cluster using the age key.
 
 Traefik serves ingress over a LoadBalancer address (k3s servicelb assigns the node IP). Services are
 exposed under the `workstation.internal` domain, which CoreDNS resolves to Traefik in-cluster. To
@@ -100,7 +100,7 @@ reach a service from the Windows host, resolve its hostname to the WSL2 IP and t
 # map the hostname to the WSL2 IP (from `wsl hostname -I`) in
 # C:\Windows\System32\drivers\etc\hosts, for example:
 #   172.20.0.2  headlamp.workstation.internal
-# then import umbrella-charts/core-stack/step-ca/files/root_ca.crt into the Windows trust store
+# then import ~/.k3s-workstation-platform/ca/root_ca.crt into the Windows trust store
 ```
 
 ## Try it in a disposable environment

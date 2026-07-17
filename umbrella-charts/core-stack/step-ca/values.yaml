@@ -1,9 +1,8 @@
-# The CA key material is provided out-of-band rather than generated in-cluster:
-#   - the public certs (root_ca.crt, intermediate_ca.crt) and ca.json live in this chart's
-#     ConfigMaps (templates/), populated from files/ by scripts/generate-ca.sh;
-#   - the private keys and CA password come from SOPS-encrypted secrets rendered by the
-#     step-ca-secrets application (secrets/step-ca, decrypted in-cluster by the KSOPS plugin).
-# This keeps step-ca reproducible: existingSecrets mode disables the chart's in-cluster init.
+# The CA key material is provided out-of-band and kept local to the workstation (never committed):
+# the bootstrap generates it under ~/.k3s-workstation-platform/ca and applies the ConfigMaps
+# (step-ca-certs, step-ca-config), Secrets (step-ca-secrets, step-ca-ca-password) and the
+# cert-manager ClusterIssuer imperatively. existingSecrets mode makes this chart consume those
+# pre-existing resources instead of generating a CA in-cluster.
 step-certificates:
   fullnameOverride: step-ca
   bootstrap:
@@ -26,11 +25,3 @@ step-certificates:
       enabled: true
       persistent: true
       size: 1Gi
-
-# cert-manager ClusterIssuer that enrolls certificates against step-ca over ACME. The caBundle is
-# the CA root committed in files/, so cert-manager trusts the step-ca ACME endpoint's TLS.
-acmeIssuer:
-  enabled: true
-  name: step-ca-acme
-  server: https://step-ca.step-ca.svc.cluster.local/acme/acme/directory
-  ingressClassName: traefik
