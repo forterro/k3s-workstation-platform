@@ -56,7 +56,7 @@ uv run k3s-workstation-bootstrap bootstrap              # deploy
 3. Installs and starts k3s (flannel CNI, Traefik disabled) (sudo, systemd service).
 4. Applies the seed: cert-manager and ArgoCD, including the root app-of-apps.
 
-ArgoCD then tracks the git repository set in `rootApp` (`bootstrap/helm/argo-cd/values.yaml`) and
+ArgoCD then tracks the git repository set in `rootApp` (`bootstrap/helm/root-app/values.yaml`) and
 reconciles the child Applications under `apps/`.
 
 ## Verify

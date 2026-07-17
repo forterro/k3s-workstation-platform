@@ -70,6 +70,11 @@ PHASE_PLAN: tuple[Phase, ...] = (
         "Install ArgoCD",
         partial(_apply_seed_chart, brick="argo-cd", namespace="argocd", release="argocd"),
     ),
+    Phase(
+        "root-app",
+        "Apply the ArgoCD root app-of-apps",
+        partial(_apply_seed_chart, brick="root-app", namespace="argocd", release="root-app"),
+    ),
 )
 
 
