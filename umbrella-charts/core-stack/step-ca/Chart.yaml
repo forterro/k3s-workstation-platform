@@ -1,0 +1,11 @@
+apiVersion: v2
+name: step-ca
+description: Internal ACME certificate authority (step-ca) for the workstation platform
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://smallstep.github.io/helm-charts/
+  - name: step-certificates
+    repository: https://smallstep.github.io/helm-charts/
+    version: 1.30.1

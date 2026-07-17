@@ -1,0 +1,6 @@
+# SOPS creation rules. The age recipient is supplied explicitly at encryption time by
+# scripts/generate-ca.sh, so only the encrypted body scope is pinned here. Encrypting just the
+# data/stringData fields keeps resource names and metadata readable in git diffs.
+creation_rules:
+  - path_regex: secrets/.*\.enc\.yaml$
+    encrypted_regex: "^(data|stringData)$"

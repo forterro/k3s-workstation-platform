@@ -1,4 +1,4 @@
-.PHONY: sync lint format test preflight bootstrap reset deps
+.PHONY: sync lint format test preflight bootstrap reset deps generate-ca
 
 sync:
 	uv sync
@@ -25,3 +25,6 @@ deps:
 	@for chart in umbrella-charts/*/*; do \
 		if [ -f "$$chart/Chart.yaml" ]; then echo "==> $$chart"; helm dependency update "$$chart"; fi; \
 	done
+
+generate-ca:
+	bash scripts/generate-ca.sh

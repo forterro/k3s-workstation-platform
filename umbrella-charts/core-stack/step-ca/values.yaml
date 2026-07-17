@@ -1,0 +1,28 @@
+# The CA key material is provided out-of-band rather than generated in-cluster:
+#   - the public certs (root_ca.crt, intermediate_ca.crt) and ca.json live in this chart's
+#     ConfigMaps (templates/), populated from files/ by scripts/generate-ca.sh;
+#   - the private keys and CA password come from SOPS-encrypted secrets rendered by the
+#     step-ca-secrets application (secrets/step-ca, decrypted in-cluster by the KSOPS plugin).
+# This keeps step-ca reproducible: existingSecrets mode disables the chart's in-cluster init.
+step-certificates:
+  fullnameOverride: step-ca
+  bootstrap:
+    enabled: false
+    configmaps: false
+    secrets: false
+  inject:
+    enabled: false
+  existingSecrets:
+    enabled: true
+    ca: true
+    certsAsSecret: false
+    configAsSecret: false
+  service:
+    type: ClusterIP
+    port: 443
+    targetPort: 9000
+  ca:
+    db:
+      enabled: true
+      persistent: true
+      size: 1Gi
