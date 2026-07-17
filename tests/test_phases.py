@@ -97,3 +97,7 @@ def test_phase_step_ca_material_applies_all_resources(monkeypatch, tmp_path):
     assert any("create secret generic step-ca-secrets" in c for c in joined)
     assert any("create secret generic step-ca-ca-password" in c for c in joined)
     assert sum(1 for c in joined if c.startswith("kubectl apply -f -")) == 6
+    assert any(
+        "annotate --local" in c and "argocd.argoproj.io/compare-options=IgnoreExtraneous" in c
+        for c in joined
+    )

@@ -20,6 +20,10 @@ _STEP_CA_ISSUER_NAME = "step-ca-acme"
 _STEP_CA_ACME_SERVER = "https://step-ca.step-ca.svc.cluster.local/acme/acme/directory"
 _STEP_CA_INGRESS_CLASS = "traefik"
 
+# Marks resources that are managed imperatively (outside git) so the ArgoCD step-ca application
+# does not treat them as extraneous and prune them.
+_ARGOCD_IGNORE = "argocd.argoproj.io/compare-options=IgnoreExtraneous"
+
 
 class PhaseError(RuntimeError):
     """Raised when a phase cannot complete."""
@@ -55,21 +59,39 @@ def _kubectl_apply(manifest: str, env: dict[str, str]) -> None:
     command.run(["kubectl", "apply", "-f", "-"], input_text=manifest, env=env)
 
 
-def _apply_namespace(name: str, env: dict[str, str]) -> None:
+def _annotate_local(manifest: str, annotations: list[str], env: dict[str, str]) -> str:
+    """Add annotations to a rendered manifest locally (without contacting the API server)."""
+    return command.run(
+        ["kubectl", "annotate", "--local", "-f", "-", "-o", "yaml", *annotations],
+        capture=True,
+        env=env,
+        input_text=manifest,
+    ).stdout
+
+
+def _apply_namespace(
+    name: str, env: dict[str, str], *, annotations: list[str] | None = None
+) -> None:
     manifest = command.run(
         ["kubectl", "create", "namespace", name, "--dry-run=client", "-o", "yaml"],
         capture=True,
         env=env,
     ).stdout
+    if annotations:
+        manifest = _annotate_local(manifest, annotations, env)
     _kubectl_apply(manifest, env)
 
 
-def _apply_generated(create_args: list[str], env: dict[str, str]) -> None:
+def _apply_generated(
+    create_args: list[str], env: dict[str, str], *, annotations: list[str] | None = None
+) -> None:
     manifest = command.run(
         [*create_args, "--dry-run=client", "-o", "yaml"],
         capture=True,
         env=env,
     ).stdout
+    if annotations:
+        manifest = _annotate_local(manifest, annotations, env)
     _kubectl_apply(manifest, env)
 
 
@@ -118,6 +140,8 @@ def _clusterissuer_manifest(ca: Path) -> str:
         "apiVersion: cert-manager.io/v1\n"
         "kind: ClusterIssuer\n"
         f"metadata:\n  name: {_STEP_CA_ISSUER_NAME}\n"
+        "  annotations:\n"
+        "    argocd.argoproj.io/compare-options: IgnoreExtraneous\n"
         "spec:\n"
         "  acme:\n"
         f"    server: {_STEP_CA_ACME_SERVER}\n"
@@ -135,7 +159,8 @@ def _phase_step_ca_material(context: Context) -> None:
     """Generate (if absent) and apply the local CA material and the ACME ClusterIssuer."""
     ca = _ensure_local_ca(context)
     env = _kubectl_env()
-    _apply_namespace(_STEP_CA_NAMESPACE, env)
+    ignore = [_ARGOCD_IGNORE]
+    _apply_namespace(_STEP_CA_NAMESPACE, env, annotations=ignore)
     _apply_generated(
         [
             "kubectl",
@@ -148,6 +173,7 @@ def _phase_step_ca_material(context: Context) -> None:
             f"--from-file=intermediate_ca.crt={ca / 'intermediate_ca.crt'}",
         ],
         env,
+        annotations=ignore,
     )
     _apply_generated(
         [
@@ -160,6 +186,7 @@ def _phase_step_ca_material(context: Context) -> None:
             f"--from-file=ca.json={ca / 'ca.json'}",
         ],
         env,
+        annotations=ignore,
     )
     _apply_generated(
         [
@@ -176,6 +203,7 @@ def _phase_step_ca_material(context: Context) -> None:
             f"--from-file=intermediate_ca_key={ca / 'intermediate_ca_key'}",
         ],
         env,
+        annotations=ignore,
     )
     _apply_generated(
         [
@@ -191,6 +219,7 @@ def _phase_step_ca_material(context: Context) -> None:
             f"--from-file=password={ca / 'ca.pass'}",
         ],
         env,
+        annotations=ignore,
     )
     _kubectl_apply(_clusterissuer_manifest(ca), env)
     console.ok("step-ca material and ClusterIssuer applied")
