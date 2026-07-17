@@ -1,6 +1,13 @@
-# Cilium values for a single-node k3s workstation (k3s started with --flannel-backend=none and its
-# built-in network policy controller disabled, so Cilium owns networking and policy enforcement).
+# Cilium values for a single-node k3s workstation. k3s runs with flannel, servicelb, traefik, its
+# network policy controller, and kube-proxy all disabled, so Cilium owns the full datapath.
+# kube-proxy replacement plus eBPF masquerade avoid iptables, which is unreliable on WSL2.
 cilium:
+  kubeProxyReplacement: true
+  # Single-node k3s: the API server is reachable locally.
+  k8sServiceHost: 127.0.0.1
+  k8sServicePort: 6443
+  bpf:
+    masquerade: true
   operator:
     # Single node: one operator replica.
     replicas: 1

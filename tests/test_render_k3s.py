@@ -14,6 +14,7 @@ def test_install_exec_disables_bundled_networking() -> None:
     exec_line = k3s.install_exec()
     assert "--flannel-backend=none" in exec_line
     assert "--disable-network-policy" in exec_line
+    assert "--disable-kube-proxy" in exec_line
     assert "--disable=traefik" in exec_line
     assert "--disable=servicelb" in exec_line
 

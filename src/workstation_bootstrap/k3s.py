@@ -1,8 +1,8 @@
 """k3s cluster provisioning.
 
 k3s is installed with a Cilium-ready configuration: the bundled flannel CNI, servicelb, traefik,
-and the kube-router network policy controller are disabled so Cilium owns networking and policy
-enforcement.
+the kube-router network policy controller, and kube-proxy are all disabled so Cilium owns the full
+datapath (kube-proxy replacement plus eBPF masquerade, which avoids iptables on WSL2).
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ UNINSTALL_SCRIPT = Path("/usr/local/bin/k3s-uninstall.sh")
 K3S_EXEC_FLAGS = (
     "--flannel-backend=none",
     "--disable-network-policy",
+    "--disable-kube-proxy",
     "--disable=traefik",
     "--disable=servicelb",
     "--write-kubeconfig-mode=644",

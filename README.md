@@ -59,6 +59,26 @@ uv run k3s-workstation-bootstrap bootstrap              # deploy
 ArgoCD then tracks the git repository set in `rootApp` (`bootstrap/helm/argo-cd/values.yaml`) and
 reconciles the child Applications under `apps/`.
 
+## Verify
+
+The k3s kubeconfig is written to `/etc/rancher/k3s/k3s.yaml`:
+
+```bash
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+kubectl get nodes            # the node becomes Ready once Cilium is up
+kubectl get pods -A          # Cilium, cert-manager and ArgoCD pods Running
+kubectl -n argocd get application root
+```
+
+Access the ArgoCD UI:
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+kubectl -n argocd port-forward svc/argocd-server 8080:443
+# then open https://localhost:8080 (user: admin)
+```
+
 ## Try it in a disposable environment
 
 The bootstrap is destructive to the host. To test it safely on WSL2, import the latest Ubuntu LTS
