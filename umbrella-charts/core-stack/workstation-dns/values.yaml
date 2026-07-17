@@ -1,0 +1,5 @@
+# Resolve the workstation wildcard domain to the Traefik service so in-cluster clients, including
+# the step-ca ACME http-01 challenge, reach ingress routes by hostname. k3s imports *.override
+# ConfigMap entries into the default CoreDNS server block.
+domain: workstation.internal
+traefikService: traefik.traefik.svc.cluster.local

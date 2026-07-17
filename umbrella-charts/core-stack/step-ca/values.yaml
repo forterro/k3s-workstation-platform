@@ -26,3 +26,11 @@ step-certificates:
       enabled: true
       persistent: true
       size: 1Gi
+
+# cert-manager ClusterIssuer that enrolls certificates against step-ca over ACME. The caBundle is
+# the CA root committed in files/, so cert-manager trusts the step-ca ACME endpoint's TLS.
+acmeIssuer:
+  enabled: true
+  name: step-ca-acme
+  server: https://step-ca.step-ca.svc.cluster.local/acme/acme/directory
+  ingressClassName: traefik

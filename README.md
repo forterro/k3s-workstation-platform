@@ -79,6 +79,30 @@ kubectl -n argocd port-forward svc/argocd-server 8080:443
 # then open https://localhost:8080 (user: admin)
 ```
 
+## Certificates and local access
+
+The platform runs an internal ACME certificate authority (step-ca) and issues TLS certificates
+through cert-manager. Generate the CA once, before the first bootstrap:
+
+```bash
+make generate-ca
+```
+
+This writes the public CA material to `umbrella-charts/core-stack/step-ca/files/` and the encrypted
+private material to `secrets/step-ca/` (SOPS/age). Commit both so ArgoCD can reconcile step-ca; the
+KSOPS plugin on the ArgoCD repo-server decrypts the secrets in-cluster using the age key.
+
+Traefik serves ingress over a LoadBalancer address (k3s servicelb assigns the node IP). Services are
+exposed under the `workstation.internal` domain, which CoreDNS resolves to Traefik in-cluster. To
+reach a service from the Windows host, resolve its hostname to the WSL2 IP and trust the CA root:
+
+```powershell
+# map the hostname to the WSL2 IP (from `wsl hostname -I`) in
+# C:\Windows\System32\drivers\etc\hosts, for example:
+#   172.20.0.2  headlamp.workstation.internal
+# then import umbrella-charts/core-stack/step-ca/files/root_ca.crt into the Windows trust store
+```
+
 ## Try it in a disposable environment
 
 The bootstrap is destructive to the host. To test it safely on WSL2, import the latest Ubuntu LTS
@@ -115,6 +139,8 @@ tool-versions.yaml           # pinned CLI tool versions
 src/workstation_bootstrap/   # imperative seed generator
 bootstrap/helm/              # seed umbrella charts (cert-manager, argo-cd)
 umbrella-charts/             # GitOps-managed, per-brick umbrella charts
+secrets/                     # SOPS-encrypted secrets rendered by the KSOPS plugin
+scripts/                     # operational scripts (CA generation)
 apps/                        # child ArgoCD Applications reconciled by the root app-of-apps
 config/                      # optional local value overrides
 ```

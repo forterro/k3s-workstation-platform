@@ -3,3 +3,13 @@
 headlamp:
   service:
     type: ClusterIP
+
+# Expose Headlamp through Traefik over TLS, with a certificate issued by step-ca via cert-manager.
+ingressRoute:
+  enabled: true
+  host: headlamp.workstation.internal
+  entryPoint: websecure
+  issuer: step-ca-acme
+  service:
+    name: headlamp
+    port: 80
