@@ -1,0 +1,11 @@
+apiVersion: v2
+name: headlamp
+description: Headlamp dashboard umbrella for the workstation platform
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://kubernetes-sigs.github.io/headlamp/
+  - name: headlamp
+    repository: https://kubernetes-sigs.github.io/headlamp/
+    version: 0.43.0

@@ -1,4 +1,4 @@
-.PHONY: sync lint format test preflight bootstrap reset
+.PHONY: sync lint format test preflight bootstrap reset deps
 
 sync:
 	uv sync
@@ -20,3 +20,8 @@ bootstrap:
 
 reset:
 	uv run k3s-workstation-bootstrap reset
+
+deps:
+	@for chart in umbrella-charts/*/*; do \
+		if [ -f "$$chart/Chart.yaml" ]; then echo "==> $$chart"; helm dependency update "$$chart"; fi; \
+	done

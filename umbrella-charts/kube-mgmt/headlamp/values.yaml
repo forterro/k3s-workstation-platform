@@ -1,0 +1,5 @@
+# Values passed to the upstream Headlamp subchart. Umbrella-level addons (e.g. an IngressRoute)
+# would go in templates/.
+headlamp:
+  service:
+    type: ClusterIP

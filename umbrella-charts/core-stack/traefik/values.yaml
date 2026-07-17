@@ -1,0 +1,14 @@
+# Umbrella-level addons live in templates/ (for example the dashboard IngressRoute below),
+# disabled by default. This is the whole point of wrapping the upstream chart in an umbrella.
+dashboardRoute:
+  enabled: false
+  entryPoint: web
+  match: "PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
+
+# Values passed to the upstream Traefik subchart.
+traefik:
+  service:
+    type: ClusterIP
+  ingressRoute:
+    dashboard:
+      enabled: false

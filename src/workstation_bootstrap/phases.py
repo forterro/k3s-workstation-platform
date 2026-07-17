@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from . import console, helm, k3s, tools
+from . import console, helm, k3s, settings, tools
 
 
 class PhaseError(RuntimeError):
@@ -38,6 +38,16 @@ def _seed_values(root: Path, brick: str) -> list[Path]:
 
 def _phase_k3s(context: Context) -> None:
     k3s.ensure_k3s(dry_run=context.dry_run)
+
+
+def _phase_root_app(context: Context) -> None:
+    chart = context.root / "bootstrap" / "helm" / "root-app"
+    if not chart.exists():
+        raise PhaseError(f"seed chart not found: {chart}")
+    config = settings.load_or_init_config(context.root)
+    values_file = settings.render_root_app_values(config)
+    helm.update_dependencies(chart)
+    helm.install(chart, release="root-app", namespace="argocd", values=[values_file])
 
 
 def _apply_seed_chart(context: Context, *, brick: str, namespace: str, release: str) -> None:
@@ -70,11 +80,7 @@ PHASE_PLAN: tuple[Phase, ...] = (
         "Install ArgoCD",
         partial(_apply_seed_chart, brick="argo-cd", namespace="argocd", release="argocd"),
     ),
-    Phase(
-        "root-app",
-        "Apply the ArgoCD root app-of-apps",
-        partial(_apply_seed_chart, brick="root-app", namespace="argocd", release="root-app"),
-    ),
+    Phase("root-app", "Apply the ArgoCD root app-of-apps", _phase_root_app),
 )
 
 

@@ -11,9 +11,10 @@ __pycache__/
 /rendered/
 *.rendered.yaml
 
-# Vendored Helm chart dependencies (rebuilt via `helm dependency update`)
-**/charts/*.tgz
-**/Chart.lock
+# Vendored Helm dependencies for the imperative seed (rebuilt via `helm dependency update`).
+# umbrella-charts/ dependencies are vendored and committed so ArgoCD renders them reliably.
+bootstrap/helm/**/charts/*.tgz
+bootstrap/helm/**/Chart.lock
 
 # Local Kubernetes / secrets material (never commit)
 kubeconfig*.yaml
