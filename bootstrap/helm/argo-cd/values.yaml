@@ -1,9 +1,14 @@
 # ArgoCD values for a single-node local workstation. Minimal footprint: dex (SSO) and the
 # notifications controller are disabled. The server runs in insecure mode behind a local ingress.
+# The repo-server carries the KSOPS kustomize plugin so SOPS/age-encrypted secrets can be
+# decrypted at render time; the age key is mounted from the sops-age secret created by bootstrap.
 argo-cd:
   configs:
     params:
       server.insecure: true
+    cm:
+      # Required for the KSOPS kustomize exec plugin.
+      kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
   dex:
     enabled: false
   notifications:
@@ -14,5 +19,33 @@ argo-cd:
     replicas: 1
   repoServer:
     replicas: 1
+    env:
+      - name: XDG_CONFIG_HOME
+        value: /.config
+      - name: SOPS_AGE_KEY_FILE
+        value: /.config/sops/age/keys.txt
+    volumes:
+      - name: custom-tools
+        emptyDir: {}
+      - name: sops-age
+        secret:
+          secretName: sops-age
+    initContainers:
+      # renovate: datasource=docker depName=viaductoss/ksops
+      - name: install-ksops
+        image: viaductoss/ksops:v4.5.1
+        command: ["/usr/local/bin/ksops", "install", "--with-kustomize", "/custom-tools"]
+        volumeMounts:
+          - mountPath: /custom-tools
+            name: custom-tools
+    volumeMounts:
+      - mountPath: /usr/local/bin/kustomize
+        name: custom-tools
+        subPath: kustomize
+      - mountPath: /usr/local/bin/ksops
+        name: custom-tools
+        subPath: ksops
+      - mountPath: /.config/sops/age
+        name: sops-age
   applicationSet:
     replicas: 1

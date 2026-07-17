@@ -5,10 +5,12 @@ dashboardRoute:
   entryPoint: web
   match: "PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
 
-# Values passed to the upstream Traefik subchart.
+# Values passed to the upstream Traefik subchart. Exposed through the k3s built-in servicelb
+# (klipper), which assigns the WSL2 node IP to the LoadBalancer service. The chart already exposes
+# the web (80) and websecure (443, TLS) entry points by default.
 traefik:
   service:
-    type: ClusterIP
+    type: LoadBalancer
   ingressRoute:
     dashboard:
       enabled: false

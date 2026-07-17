@@ -6,12 +6,13 @@ depends on the previous one.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from . import console, helm, k3s, settings, tools
+from . import command, console, helm, k3s, settings, tools
 
 
 class PhaseError(RuntimeError):
@@ -38,6 +39,52 @@ def _seed_values(root: Path, brick: str) -> list[Path]:
 
 def _phase_k3s(context: Context) -> None:
     k3s.ensure_k3s(dry_run=context.dry_run)
+
+
+def _kubectl_env() -> dict[str, str]:
+    return {**os.environ, "KUBECONFIG": str(k3s.KUBECONFIG)}
+
+
+def _kubectl_apply(manifest: str, env: dict[str, str]) -> None:
+    command.run(["kubectl", "apply", "-f", "-"], input_text=manifest, env=env)
+
+
+def _ensure_sops_age_secret(context: Context) -> None:
+    """Publish the local age key as the argocd/sops-age secret consumed by the KSOPS plugin."""
+    key_path = tools.age_key_path()
+    if not key_path.exists():
+        raise PhaseError(f"age key not found: {key_path}")
+    env = _kubectl_env()
+    namespace = command.run(
+        ["kubectl", "create", "namespace", "argocd", "--dry-run=client", "-o", "yaml"],
+        capture=True,
+        env=env,
+    ).stdout
+    _kubectl_apply(namespace, env)
+    secret = command.run(
+        [
+            "kubectl",
+            "create",
+            "secret",
+            "generic",
+            "sops-age",
+            "--namespace",
+            "argocd",
+            f"--from-file=keys.txt={key_path}",
+            "--dry-run=client",
+            "-o",
+            "yaml",
+        ],
+        capture=True,
+        env=env,
+    ).stdout
+    _kubectl_apply(secret, env)
+    console.ok("sops-age secret ensured in the argocd namespace")
+
+
+def _phase_argocd(context: Context) -> None:
+    _ensure_sops_age_secret(context)
+    _apply_seed_chart(context, brick="argo-cd", namespace="argocd", release="argocd")
 
 
 def _phase_root_app(context: Context) -> None:
@@ -75,11 +122,7 @@ PHASE_PLAN: tuple[Phase, ...] = (
             release="cert-manager",
         ),
     ),
-    Phase(
-        "argocd",
-        "Install ArgoCD",
-        partial(_apply_seed_chart, brick="argo-cd", namespace="argocd", release="argocd"),
-    ),
+    Phase("argocd", "Install ArgoCD with the KSOPS plugin", _phase_argocd),
     Phase("root-app", "Apply the ArgoCD root app-of-apps", _phase_root_app),
 )
 
