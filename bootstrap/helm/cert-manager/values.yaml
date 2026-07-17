@@ -1,0 +1,10 @@
+# cert-manager values for the workstation seed. CRDs are installed with the chart so the seed can
+# apply them in the CRD-first pass.
+cert-manager:
+  crds:
+    enabled: true
+  replicaCount: 1
+  webhook:
+    replicaCount: 1
+  cainjector:
+    replicaCount: 1

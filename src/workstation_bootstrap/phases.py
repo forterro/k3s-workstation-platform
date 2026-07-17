@@ -1,0 +1,103 @@
+"""Ordered seed phases and the bootstrap runner.
+
+The seed installs only what ArgoCD needs to exist and take over. Phases execute in order; each
+depends on the previous one.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import partial
+from pathlib import Path
+
+from . import apply, console, k3s, render, tools
+
+
+class PhaseError(RuntimeError):
+    """Raised when a phase cannot complete."""
+
+
+@dataclass(frozen=True)
+class Context:
+    root: Path
+    dry_run: bool
+
+
+@dataclass(frozen=True)
+class Phase:
+    name: str
+    description: str
+    run: Callable[[Context], None]
+
+
+def _seed_values(root: Path, brick: str) -> list[Path]:
+    override = root / "config" / brick / "values.yaml"
+    return [override] if override.exists() else []
+
+
+def _phase_k3s(context: Context) -> None:
+    k3s.ensure_k3s(dry_run=context.dry_run)
+
+
+def _apply_seed_chart(context: Context, *, brick: str, namespace: str, release: str) -> None:
+    chart = context.root / "bootstrap" / "helm" / brick
+    if not chart.exists():
+        raise PhaseError(f"seed chart not found: {chart}")
+    render.update_dependencies(chart)
+    manifests = render.render_chart(
+        chart,
+        release=release,
+        namespace=namespace,
+        values=_seed_values(context.root, brick),
+    )
+    apply.ensure_namespace(namespace)
+    apply.apply_manifests(manifests)
+
+
+PHASE_PLAN: tuple[Phase, ...] = (
+    Phase("k3s", "Install and start k3s with Cilium-ready flags", _phase_k3s),
+    Phase(
+        "cilium",
+        "Render and apply the Cilium CNI (must run first; nodes NotReady until ready)",
+        partial(_apply_seed_chart, brick="cilium", namespace="kube-system", release="cilium"),
+    ),
+    Phase(
+        "cert-manager",
+        "Apply cert-manager with its CRDs",
+        partial(
+            _apply_seed_chart,
+            brick="cert-manager",
+            namespace="cert-manager",
+            release="cert-manager",
+        ),
+    ),
+    Phase(
+        "argocd",
+        "Install ArgoCD",
+        partial(_apply_seed_chart, brick="argo-cd", namespace="argocd", release="argocd"),
+    ),
+)
+
+
+def run_bootstrap(context: Context) -> bool:
+    """Execute the seed phases in order. Returns True on success."""
+    console.step("Bootstrapping the workstation cluster")
+
+    console.step("Ensuring prerequisites")
+    tools.ensure_tools(dry_run=context.dry_run)
+    tools.ensure_age_key(dry_run=context.dry_run)
+
+    if context.dry_run:
+        console.info("Dry run: listing the planned phase sequence")
+        for index, phase in enumerate(PHASE_PLAN, start=1):
+            console.sub(f"[{index}] {phase.name}: {phase.description}")
+        return True
+
+    for index, phase in enumerate(PHASE_PLAN, start=1):
+        console.step(f"Phase [{index}] {phase.name}")
+        phase.run(context)
+        console.ok(f"Phase {phase.name} complete")
+
+    console.ok("Seed complete; ArgoCD now reconciles the platform")
+    return True

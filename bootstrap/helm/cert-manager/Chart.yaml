@@ -1,0 +1,10 @@
+apiVersion: v2
+name: cert-manager-seed
+description: cert-manager for the k3s workstation seed
+type: application
+version: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://charts.jetstack.io
+  - name: cert-manager
+    repository: https://charts.jetstack.io
+    version: v1.21.0

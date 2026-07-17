@@ -1,0 +1,13 @@
+# CLI tool versions pinned for the bootstrap installer (src/workstation_bootstrap/tools.py).
+# Renovate keeps these current via a custom manager (configured in the CI increment).
+tools:
+  # renovate: datasource=github-releases depName=kubernetes/kubernetes
+  kubectl: v1.36.2
+  # renovate: datasource=github-releases depName=helm/helm
+  helm: v4.2.3
+  # renovate: datasource=github-releases depName=getsops/sops
+  sops: v3.13.2
+  # renovate: datasource=github-releases depName=FiloSottile/age
+  age: v1.3.1
+  # renovate: datasource=github-releases depName=smallstep/cli
+  step: v0.30.6

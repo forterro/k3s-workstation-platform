@@ -1,0 +1,29 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Rendered / generated artifacts (bootstrap output is disposable)
+/out/
+/rendered/
+*.rendered.yaml
+
+# Vendored Helm chart dependencies (rebuilt via `helm dependency update`)
+**/charts/*.tgz
+**/Chart.lock
+
+# Local Kubernetes / secrets material (never commit)
+kubeconfig*.yaml
+*.kubeconfig
+*.age
+age-key.txt
+keys.txt
+.env
+.env.*
+
+# Editor / OS
+.DS_Store
+*.swp

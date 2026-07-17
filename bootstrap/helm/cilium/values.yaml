@@ -1,0 +1,10 @@
+# Cilium values for a single-node k3s workstation (k3s started with --flannel-backend=none and its
+# built-in network policy controller disabled, so Cilium owns networking and policy enforcement).
+cilium:
+  operator:
+    # Single node: one operator replica.
+    replicas: 1
+  ipam:
+    # Use the pod CIDR that the k3s controller-manager assigns to the node.
+    mode: kubernetes
+  rollOutCiliumPods: true

@@ -1,0 +1,2 @@
+# Child ArgoCD Application manifests reconciled by the root app-of-apps.
+# Add one YAML file per application here.

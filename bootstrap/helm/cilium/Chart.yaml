@@ -1,0 +1,10 @@
+apiVersion: v2
+name: cilium-seed
+description: Cilium CNI for the k3s workstation seed
+type: application
+version: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://helm.cilium.io
+  - name: cilium
+    repository: https://helm.cilium.io
+    version: 1.19.6
