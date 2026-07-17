@@ -67,17 +67,28 @@ def ensure_k3s(dry_run: bool = False) -> None:
     console.ok("k3s installed and API ready")
 
 
+_STALE_CNI_INTERFACES = ("cni0", "flannel.1", "cilium_host", "cilium_net", "cilium_vxlan")
+
+
+def _sudo(cmd: list[str]) -> list[str]:
+    return cmd if os.geteuid() == 0 else ["sudo", *cmd]
+
+
+def _clean_cni_interfaces() -> None:
+    """Delete leftover CNI interfaces; a stale VXLAN device blocks a fresh flannel start."""
+    for iface in _STALE_CNI_INTERFACES:
+        command.run(_sudo(["ip", "link", "delete", iface]), check=False)
+
+
 def uninstall(dry_run: bool = False) -> None:
     """Completely remove k3s and its cluster state via the k3s uninstall script."""
     if not UNINSTALL_SCRIPT.exists():
         console.warn(f"k3s uninstall script not found ({UNINSTALL_SCRIPT}); nothing to reset")
         return
     if dry_run:
-        console.sub(f"would run {UNINSTALL_SCRIPT} (removes the cluster and all workloads)")
+        console.sub(f"would run {UNINSTALL_SCRIPT} and clean stale CNI interfaces")
         return
     console.step("Removing k3s (cluster and all workloads)")
-    cmd = [str(UNINSTALL_SCRIPT)]
-    if os.geteuid() != 0:
-        cmd = ["sudo", *cmd]
-    command.run(cmd)
+    command.run(_sudo([str(UNINSTALL_SCRIPT)]))
+    _clean_cni_interfaces()
     console.ok("k3s removed")

@@ -21,21 +21,21 @@ def test_tools_needing_install_all_missing(monkeypatch: pytest.MonkeyPatch) -> N
 def test_tools_needing_install_all_current(monkeypatch: pytest.MonkeyPatch) -> None:
     _all_present(monkeypatch)
     monkeypatch.setattr(
-        tools, "_installed_version", lambda name: tools.pinned_version(name).lstrip("v")
+        tools, "installed_version", lambda name: tools.pinned_version(name).lstrip("v")
     )
     assert tools.tools_needing_install() == []
 
 
 def test_tools_needing_install_outdated(monkeypatch: pytest.MonkeyPatch) -> None:
     _all_present(monkeypatch)
-    monkeypatch.setattr(tools, "_installed_version", lambda name: "0.0.1")
+    monkeypatch.setattr(tools, "installed_version", lambda name: "0.0.1")
     pending = tools.tools_needing_install()
     assert {status for _, status in pending} == {"outdated"}
 
 
 def test_tools_needing_install_unknown_version_left_alone(monkeypatch: pytest.MonkeyPatch) -> None:
     _all_present(monkeypatch)
-    monkeypatch.setattr(tools, "_installed_version", lambda name: None)
+    monkeypatch.setattr(tools, "installed_version", lambda name: None)
     assert tools.tools_needing_install() == []
 
 

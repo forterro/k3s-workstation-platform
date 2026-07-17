@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from . import console
+from . import console, tools
 
 
 class Status(Enum):
@@ -34,33 +34,15 @@ class CheckResult:
 _MANAGED_TOOLS = ("kubectl", "helm", "sops", "age", "step", "k3s")
 
 
-def _tool_version(tool: str) -> str | None:
-    path = shutil.which(tool)
-    if path is None:
-        return None
-    try:
-        proc = subprocess.run(  # noqa: S603 - fixed, trusted tool names
-            [tool, "--version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return path
-    output = (proc.stdout or proc.stderr).strip().splitlines()
-    return output[0] if output else path
-
-
 def _check_tools() -> list[CheckResult]:
     results: list[CheckResult] = []
     for tool in _MANAGED_TOOLS:
-        version = _tool_version(tool)
-        if version is None:
+        if shutil.which(tool) is None:
             results.append(
                 CheckResult(f"tool:{tool}", Status.WARN, "missing (installed by bootstrap)")
             )
         else:
+            version = tools.installed_version(tool) or "present"
             results.append(CheckResult(f"tool:{tool}", Status.OK, version))
     return results
 

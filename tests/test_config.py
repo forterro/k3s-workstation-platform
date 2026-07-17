@@ -44,4 +44,3 @@ def test_value_files_only_existing(tmp_path: Path) -> None:
     resolved = value_files(tmp_path, "core-stack", "traefik")
 
     assert resolved == [base]
-

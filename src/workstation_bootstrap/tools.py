@@ -64,7 +64,7 @@ _VERSION_COMMANDS: dict[str, list[str]] = {
 _SEMVER = re.compile(r"(\d+\.\d+\.\d+)")
 
 
-def _installed_version(tool: str) -> str | None:
+def installed_version(tool: str) -> str | None:
     """Return the installed version (x.y.z) of a tool, or None if not determinable."""
     cmd = _VERSION_COMMANDS.get(tool, [tool, "--version"])
     result = command.run(cmd, check=False, capture=True)
@@ -170,7 +170,7 @@ TOOLS: tuple[Tool, ...] = (
 def _tool_status(tool: Tool) -> str:
     if shutil.which(tool.name) is None:
         return "missing"
-    installed = _installed_version(tool.name)
+    installed = installed_version(tool.name)
     if installed is None:
         return "unknown"
     return "current" if installed == pinned_version(tool.name).lstrip("v") else "outdated"
