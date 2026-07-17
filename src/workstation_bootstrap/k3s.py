@@ -1,8 +1,8 @@
 """k3s cluster provisioning.
 
-k3s is installed with a Cilium-ready configuration: the bundled flannel CNI, servicelb, traefik,
-the kube-router network policy controller, and kube-proxy are all disabled so Cilium owns the full
-datapath (kube-proxy replacement plus eBPF masquerade, which avoids iptables on WSL2).
+k3s is installed with its default networking: the flannel CNI, kube-proxy, and the kube-router
+network policy controller, which enforces standard Kubernetes NetworkPolicy. Only Traefik is
+disabled so ingress can be managed as a platform brick.
 """
 
 from __future__ import annotations
@@ -19,11 +19,7 @@ INSTALL_URL = "https://get.k3s.io"
 UNINSTALL_SCRIPT = Path("/usr/local/bin/k3s-uninstall.sh")
 
 K3S_EXEC_FLAGS = (
-    "--flannel-backend=none",
-    "--disable-network-policy",
-    "--disable-kube-proxy",
     "--disable=traefik",
-    "--disable=servicelb",
     "--write-kubeconfig-mode=644",
 )
 
@@ -52,7 +48,7 @@ def _wait_api(timeout_seconds: int = 120) -> None:
 
 
 def ensure_k3s(dry_run: bool = False) -> None:
-    """Install and start k3s with the Cilium-ready flags if it is not already running."""
+    """Install and start k3s with its default networking if it is not already running."""
     if is_running():
         console.ok("k3s already running")
         return

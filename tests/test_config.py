@@ -26,22 +26,22 @@ def test_find_repo_root_fallback_to_start(tmp_path: Path) -> None:
 
 
 def test_value_files_ordering(tmp_path: Path) -> None:
-    base = tmp_path / "umbrella-charts" / "core-stack" / "cilium" / "values.yaml"
+    base = tmp_path / "umbrella-charts" / "core-stack" / "traefik" / "values.yaml"
     glob = tmp_path / "config" / "values.yaml"
-    brick = tmp_path / "config" / "core-stack" / "cilium" / "values.yaml"
+    brick = tmp_path / "config" / "core-stack" / "traefik" / "values.yaml"
     for path in (base, glob, brick):
         _write(path)
 
-    resolved = value_files(tmp_path, "core-stack", "cilium")
+    resolved = value_files(tmp_path, "core-stack", "traefik")
 
     assert resolved == [base, glob, brick]
 
 
 def test_value_files_only_existing(tmp_path: Path) -> None:
-    base = tmp_path / "umbrella-charts" / "core-stack" / "cilium" / "values.yaml"
+    base = tmp_path / "umbrella-charts" / "core-stack" / "traefik" / "values.yaml"
     _write(base)
 
-    resolved = value_files(tmp_path, "core-stack", "cilium")
+    resolved = value_files(tmp_path, "core-stack", "traefik")
 
     assert resolved == [base]
 

@@ -10,13 +10,11 @@ from workstation_bootstrap import k3s
 from workstation_bootstrap.helm import install_args
 
 
-def test_install_exec_disables_bundled_networking() -> None:
+def test_install_exec_keeps_flannel_defaults() -> None:
     exec_line = k3s.install_exec()
-    assert "--flannel-backend=none" in exec_line
-    assert "--disable-network-policy" in exec_line
-    assert "--disable-kube-proxy" in exec_line
     assert "--disable=traefik" in exec_line
-    assert "--disable=servicelb" in exec_line
+    assert "--flannel-backend=none" not in exec_line
+    assert "--disable-kube-proxy" not in exec_line
 
 
 def test_uninstall_without_script_is_noop(

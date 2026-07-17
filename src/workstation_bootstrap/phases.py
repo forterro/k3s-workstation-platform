@@ -54,12 +54,7 @@ def _apply_seed_chart(context: Context, *, brick: str, namespace: str, release: 
 
 
 PHASE_PLAN: tuple[Phase, ...] = (
-    Phase("k3s", "Install and start k3s with Cilium-ready flags", _phase_k3s),
-    Phase(
-        "cilium",
-        "Render and apply the Cilium CNI (must run first; nodes NotReady until ready)",
-        partial(_apply_seed_chart, brick="cilium", namespace="kube-system", release="cilium"),
-    ),
+    Phase("k3s", "Install and start k3s (flannel CNI, standard NetworkPolicy)", _phase_k3s),
     Phase(
         "cert-manager",
         "Apply cert-manager with its CRDs",

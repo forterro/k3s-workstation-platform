@@ -9,9 +9,9 @@ This repository is the generic base platform layer.
 ## Model in one paragraph
 
 A minimal imperative seed (this project's Python generator) installs the strict minimum required for
-ArgoCD to run: the CNI (Cilium), cert-manager, and ArgoCD itself. Everything else is declared as
-per-brick umbrella charts and reconciled by ArgoCD via an app-of-apps. Updates are detected by
-Renovate, flow through gitflow, and ship as semantic-version releases that you pin.
+ArgoCD to run: cert-manager and ArgoCD itself (k3s provides the flannel CNI). Everything else is
+declared as per-brick umbrella charts and reconciled by ArgoCD via an app-of-apps. Updates are
+detected by Renovate, flow through gitflow, and ship as semantic-version releases that you pin.
 
 ## Scope
 
@@ -53,8 +53,8 @@ uv run k3s-workstation-bootstrap bootstrap              # deploy
 
 1. Installs any missing or outdated CLI tools into `/usr/local/bin` (sudo).
 2. Generates a local age key for SOPS if none exists.
-3. Installs and starts k3s with Cilium-ready flags (sudo, systemd service).
-4. Applies the seed: Cilium, cert-manager, and ArgoCD, including the root app-of-apps.
+3. Installs and starts k3s (flannel CNI, Traefik disabled) (sudo, systemd service).
+4. Applies the seed: cert-manager and ArgoCD, including the root app-of-apps.
 
 ArgoCD then tracks the git repository set in `rootApp` (`bootstrap/helm/argo-cd/values.yaml`) and
 reconciles the child Applications under `apps/`.
@@ -66,8 +66,8 @@ The k3s kubeconfig is written to `/etc/rancher/k3s/k3s.yaml`:
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-kubectl get nodes            # the node becomes Ready once Cilium is up
-kubectl get pods -A          # Cilium, cert-manager and ArgoCD pods Running
+kubectl get nodes            # the node should be Ready
+kubectl get pods -A          # cert-manager and ArgoCD pods Running
 kubectl -n argocd get application root
 ```
 
@@ -113,7 +113,7 @@ uv run k3s-workstation-bootstrap reset
 pyproject.toml  uv.lock  Makefile
 tool-versions.yaml           # pinned CLI tool versions
 src/workstation_bootstrap/   # imperative seed generator
-bootstrap/helm/              # seed umbrella charts (Cilium, cert-manager, argo-cd)
+bootstrap/helm/              # seed umbrella charts (cert-manager, argo-cd)
 umbrella-charts/             # GitOps-managed, per-brick umbrella charts
 apps/                        # child ArgoCD Applications reconciled by the root app-of-apps
 config/                      # optional local value overrides
