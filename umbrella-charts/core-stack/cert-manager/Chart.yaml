@@ -1,6 +1,6 @@
 apiVersion: v2
-name: cert-manager-seed
-description: cert-manager for the k3s workstation seed
+name: cert-manager
+description: cert-manager for the k3s workstation platform (seed-installed, GitOps-managed)
 type: application
 version: 0.1.0
 dependencies:

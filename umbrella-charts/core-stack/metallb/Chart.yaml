@@ -1,6 +1,6 @@
 apiVersion: v2
-name: metallb-seed
-description: MetalLB load balancer for the k3s workstation seed
+name: metallb
+description: MetalLB load balancer for the k3s workstation platform (seed-installed, GitOps-managed)
 type: application
 version: 0.1.0
 dependencies:

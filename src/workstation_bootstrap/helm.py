@@ -26,6 +26,7 @@ def install_args(
     values: Sequence[Path],
     kubeconfig: Path,
     wait_timeout: str,
+    set_values: Sequence[str] = (),
 ) -> list[str]:
     args = [
         "helm",
@@ -44,6 +45,8 @@ def install_args(
     ]
     for value_file in values:
         args += ["-f", str(value_file)]
+    for override in set_values:
+        args += ["--set", override]
     return args
 
 
@@ -53,8 +56,11 @@ def install(
     release: str,
     namespace: str,
     values: Sequence[Path] = (),
+    set_values: Sequence[str] = (),
     kubeconfig: Path = KUBECONFIG,
     wait_timeout: str = "5m",
 ) -> None:
     """Install or upgrade a chart and wait for its resources to be ready."""
-    command.run(install_args(chart_dir, release, namespace, values, kubeconfig, wait_timeout))
+    command.run(
+        install_args(chart_dir, release, namespace, values, kubeconfig, wait_timeout, set_values)
+    )

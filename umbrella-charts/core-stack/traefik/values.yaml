@@ -1,9 +1,10 @@
-# Umbrella-level addons live in templates/ (for example the dashboard IngressRoute below),
-# disabled by default. This is the whole point of wrapping the upstream chart in an umbrella.
+# Umbrella-level addons live in templates/. The dashboard route below exposes the Traefik
+# dashboard/api through Traefik over TLS, with a certificate issued by step-ca via cert-manager.
 dashboardRoute:
-  enabled: false
-  entryPoint: web
-  match: "PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
+  enabled: true
+  host: traefik.workstation.internal
+  entryPoint: websecure
+  issuer: step-ca-acme
 
 # Values passed to the upstream Traefik subchart. Exposed through MetalLB (L2 mode): the service is
 # annotated with the MetalLB pool name so it always gets the fixed workstation address handed out by

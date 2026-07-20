@@ -54,8 +54,9 @@ uv run k3s-workstation-bootstrap bootstrap              # deploy
 1. Installs any missing or outdated CLI tools into `/usr/local/bin` (sudo).
 2. Generates a local age key for SOPS if none exists.
 3. Installs and starts k3s (flannel CNI, Traefik disabled) (sudo, systemd service).
-4. Applies the seed: cert-manager, the local CA material (generated on first run) and its ACME
-   ClusterIssuer, then ArgoCD and the root app-of-apps.
+4. Applies the seed from `umbrella-charts/` (the single source of truth): cert-manager, the local CA
+   material (generated on first run) and its ACME ClusterIssuer, MetalLB, then ArgoCD and the root
+   app-of-apps. ArgoCD afterwards adopts and reconciles the seed-installed charts via `apps/`.
 
 ArgoCD then tracks the git repository set in `rootApp` (`bootstrap/helm/root-app/values.yaml`) and
 reconciles the child Applications under `apps/`.
@@ -203,8 +204,8 @@ uv run k3s-workstation-bootstrap reset
 pyproject.toml  uv.lock  Makefile
 tool-versions.yaml           # pinned CLI tool versions
 src/workstation_bootstrap/   # imperative seed generator
-bootstrap/helm/              # seed umbrella charts (cert-manager, argo-cd)
-umbrella-charts/             # GitOps-managed, per-brick umbrella charts
+bootstrap/helm/root-app/     # ArgoCD app-of-apps entrypoint (the only seed-only chart)
+umbrella-charts/             # single source of truth: every workload chart (seed-installed + GitOps)
 secrets/                     # SOPS-encrypted secrets rendered by the KSOPS plugin
 scripts/                     # operational scripts (CA generation)
 apps/                        # child ArgoCD Applications reconciled by the root app-of-apps

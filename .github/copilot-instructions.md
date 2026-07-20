@@ -8,22 +8,37 @@ imperatively (a Python seed) and then hands off to ArgoCD (app-of-apps) for GitO
 - Substrate: WSL2 (Ubuntu latest LTS, systemd) + k3s (flannel CNI, Traefik disabled and servicelb
   disabled at k3s level; MetalLB owns LoadBalancer services).
 - Seed generator: `src/workstation_bootstrap/` (uv project, console script `k3s-workstation-bootstrap`).
+- Single source of truth: every workload chart lives under `umbrella-charts/` (grouped `core-stack/`,
+  `kube-mgmt/`). The seed installs the minimal subset it needs from there directly (same chart path
+  ArgoCD later adopts); `bootstrap/helm/` holds only `root-app` (the app-of-apps entrypoint glue).
 - Seed phases (ordered), in `phases.py` `PHASE_PLAN`:
   1. `k3s` — install/start k3s (`--disable=traefik --disable=servicelb`).
-  2. `cert-manager` — seed umbrella `bootstrap/helm/cert-manager`.
+  2. `cert-manager` — install `umbrella-charts/core-stack/cert-manager`.
   3. `step-ca-material` — generate the local CA if absent and apply CA ConfigMaps/Secrets + the
      ACME ClusterIssuer imperatively (see "CA is local" below).
-  4. `argocd` — create the `argocd/sops-age` secret, then install `bootstrap/helm/argo-cd` (ships the
-     KSOPS plugin as a repo-server init container; generic secret infra, not used by the CA anymore).
-  5. `metallb` — install `bootstrap/helm/metallb` (seed-only, like cert-manager) then apply a
-     single-address IPAddressPool + L2Advertisement imperatively from the configured Traefik IP.
+  4. `argocd` — create the `argocd/sops-age` secret, then install `umbrella-charts/kube-mgmt/argocd`
+     with `--set ingressRoute.enabled=false` (Traefik IngressRoute CRD absent at seed time; ArgoCD
+     re-enables the ingress once it self-manages the app). Ships the KSOPS plugin as a repo-server
+     init container; generic secret infra, not used by the CA anymore.
+  5. `metallb` — install `umbrella-charts/core-stack/metallb` then apply a single-address
+     IPAddressPool + L2Advertisement imperatively from the configured Traefik IP.
   6. `root-app` — install `bootstrap/helm/root-app` (app-of-apps; root app recurses `apps/`).
 - GitOps bricks are per-brick umbrella charts under `umbrella-charts/`, each with a child ArgoCD
-  Application in `apps/`. Umbrella dependencies are vendored (Chart.lock + charts/*.tgz committed);
-  regenerate with `make deps` (needed on Renovate bumps).
+  Application in `apps/`. The seed-installed charts (cert-manager, metallb, argocd) are then adopted
+  and reconciled by their own `apps/` manifests, so nothing stays orphaned outside GitOps. Umbrella
+  dependencies are vendored (Chart.lock + charts/*.tgz committed); regenerate with `make deps`
+  (needed on Renovate bumps).
 
 ## Bricks currently in git
 
+- `umbrella-charts/core-stack/cert-manager` — cert-manager + CRDs. Seed-installed (phase 2) and then
+  reconciled by `apps/cert-manager.yaml` (sync-wave -1, CreateNamespace).
+- `umbrella-charts/core-stack/metallb` — MetalLB (L2). Seed-installed (phase 5); the single-address
+  IPAddressPool + L2Advertisement stay imperative (machine-specific IP, IgnoreExtraneous). The
+  workload is reconciled by `apps/metallb.yaml` (sync-wave -1, CreateNamespace).
+- `umbrella-charts/kube-mgmt/argocd` — the ArgoCD workload (argo-cd subchart, server.insecure) plus a
+  Traefik IngressRoute + step-ca Certificate on `argocd.workstation.internal`. Seed-installed with
+  the ingress disabled; `apps/argocd.yaml` makes ArgoCD self-manage and enable the ingress.
 - `umbrella-charts/core-stack/traefik` — Traefik, `service.type=LoadBalancer` annotated
   `metallb.io/address-pool: workstation-pool` so MetalLB pins it to the fixed Traefik IP.
 - `umbrella-charts/core-stack/step-ca` — step-certificates in `existingSecrets` mode (workload only;
@@ -46,8 +61,9 @@ imperatively (a Python seed) and then hands off to ArgoCD (app-of-apps) for GitO
   pool plus the Traefik service annotation pins the address to Traefik.
 - `k3s-workstation-bootstrap set-loadbalancer-ip <ip>` (`phases.reconfigure_loadbalancer_ip`) persists
   the new IP, re-applies the pool, and `kubectl -n traefik rollout restart deployment`.
-- MetalLB is a seed chart (no `apps/` manifest, deps resolved at install via `helm.update_dependencies`,
-  chart pinned in `bootstrap/helm/metallb/Chart.yaml`). The IP must stay inside the WSL2 NAT subnet.
+- MetalLB is seed-installed (phase 5) from `umbrella-charts/core-stack/metallb` and reconciled by
+  `apps/metallb.yaml`; the single-address pool stays imperative (machine-specific IP,
+  IgnoreExtraneous). The IP must stay inside the WSL2 NAT subnet.
 
 ## CA is local — never commit it (hard requirement)
 

@@ -253,7 +253,17 @@ def _phase_step_ca_material(context: Context) -> None:
 
 def _phase_argocd(context: Context) -> None:
     _ensure_sops_age_secret(context)
-    _apply_seed_chart(context, brick="argo-cd", namespace="argocd", release="argocd")
+    # The Traefik IngressRoute CRD does not exist yet at seed time, so install ArgoCD with its
+    # ingress disabled. Once Traefik is reconciled, ArgoCD self-manages this Application and the
+    # umbrella default (ingressRoute.enabled=true) re-enables the ingress.
+    _apply_seed_chart(
+        context,
+        group="kube-mgmt",
+        brick="argocd",
+        namespace="argocd",
+        release="argocd",
+        set_values=["ingressRoute.enabled=false"],
+    )
 
 
 def _metallb_pool_manifest(ip: str) -> str:
@@ -305,7 +315,13 @@ def _apply_metallb_pool(ip: str, env: dict[str, str]) -> None:
 
 def _phase_metallb(context: Context) -> None:
     """Install MetalLB and pin the LoadBalancer pool to the configured Traefik IP."""
-    _apply_seed_chart(context, brick="metallb", namespace=_METALLB_NAMESPACE, release="metallb")
+    _apply_seed_chart(
+        context,
+        group="core-stack",
+        brick="metallb",
+        namespace=_METALLB_NAMESPACE,
+        release="metallb",
+    )
     ip = settings.ensure_loadbalancer_ip(context.root, override=context.loadbalancer_ip)
     _apply_metallb_pool(ip, _kubectl_env())
     console.ok(f"MetalLB address pool pinned to {ip}")
@@ -338,8 +354,18 @@ def _phase_root_app(context: Context) -> None:
     helm.install(chart, release="root-app", namespace="argocd", values=[values_file])
 
 
-def _apply_seed_chart(context: Context, *, brick: str, namespace: str, release: str) -> None:
-    chart = context.root / "bootstrap" / "helm" / brick
+def _apply_seed_chart(
+    context: Context,
+    *,
+    group: str,
+    brick: str,
+    namespace: str,
+    release: str,
+    set_values: list[str] | None = None,
+) -> None:
+    # Seed charts are installed from their single source of truth under umbrella-charts/, the same
+    # charts ArgoCD adopts and reconciles afterwards via the apps/ manifests.
+    chart = context.root / "umbrella-charts" / group / brick
     if not chart.exists():
         raise PhaseError(f"seed chart not found: {chart}")
     helm.update_dependencies(chart)
@@ -348,6 +374,7 @@ def _apply_seed_chart(context: Context, *, brick: str, namespace: str, release: 
         release=release,
         namespace=namespace,
         values=_seed_values(context.root, brick),
+        set_values=set_values or [],
     )
 
 
@@ -358,6 +385,7 @@ PHASE_PLAN: tuple[Phase, ...] = (
         "Apply cert-manager with its CRDs",
         partial(
             _apply_seed_chart,
+            group="core-stack",
             brick="cert-manager",
             namespace="cert-manager",
             release="cert-manager",

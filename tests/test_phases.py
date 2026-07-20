@@ -140,7 +140,7 @@ def test_metallb_pool_manifest_pins_single_address():
 
 
 def test_phase_metallb_installs_chart_and_applies_pool(monkeypatch, tmp_path):
-    chart = tmp_path / "bootstrap" / "helm" / "metallb"
+    chart = tmp_path / "umbrella-charts" / "core-stack" / "metallb"
     chart.mkdir(parents=True)
 
     installed: list[dict] = []
@@ -148,7 +148,7 @@ def test_phase_metallb_installs_chart_and_applies_pool(monkeypatch, tmp_path):
     monkeypatch.setattr(
         phases.helm,
         "install",
-        lambda c, release, namespace, values: installed.append(
+        lambda c, release, namespace, values, set_values=(): installed.append(
             {"release": release, "namespace": namespace}
         ),
     )

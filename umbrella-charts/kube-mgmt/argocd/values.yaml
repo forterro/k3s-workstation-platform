@@ -1,5 +1,21 @@
+# ArgoCD umbrella brick: the ArgoCD workload (argo-cd subchart) plus a Traefik IngressRoute and a
+# step-ca certificate so the UI is reachable at a stable name over TLS without a port-forward.
+# The bootstrap seed installs this same chart to bring ArgoCD up (with ingressRoute.enabled=false,
+# because the Traefik IngressRoute CRD does not exist yet); afterwards ArgoCD self-manages this
+# Application and enables the ingress once Traefik is reconciled.
+
+# Ingress add-on (rendered only when enabled; the seed disables it, ArgoCD enables it).
+ingressRoute:
+  enabled: true
+  host: argocd.workstation.internal
+  entryPoint: websecure
+  issuer: step-ca-acme
+  service:
+    name: argocd-server
+    port: 80
+
 # ArgoCD values for a single-node local workstation. Minimal footprint: dex (SSO) and the
-# notifications controller are disabled. The server runs in insecure mode behind a local ingress.
+# notifications controller are disabled. The server runs in insecure mode behind the local ingress.
 # The repo-server carries the KSOPS kustomize plugin so SOPS/age-encrypted secrets can be
 # decrypted at render time; the age key is mounted from the sops-age secret created by bootstrap.
 argo-cd:

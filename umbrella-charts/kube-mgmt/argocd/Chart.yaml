@@ -1,8 +1,9 @@
 apiVersion: v2
-name: argo-cd-seed
-description: ArgoCD for the k3s workstation seed
+name: argocd
+description: ArgoCD server (self-managed) with a Traefik IngressRoute and step-ca certificate
 type: application
 version: 0.1.0
+appVersion: 0.1.0
 dependencies:
   # renovate: registryUrl=https://argoproj.github.io/argo-helm
   - name: argo-cd
