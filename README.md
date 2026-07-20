@@ -119,8 +119,16 @@ CA root. This is a Windows-side, one-time setup; nothing runs in the cluster for
    127.0.0.1 *.workstation.internal
    ```
 
-   Restart the Acrylic service, then set the network adapter's DNS server to `127.0.0.1`. Every
-   `*.workstation.internal` name now resolves to Traefik with no per-service change.
+   Restart the Acrylic service. Then route only the `workstation.internal` suffix to Acrylic with an
+   NRPT rule (PowerShell as administrator), so the rest of your DNS is untouched:
+
+   ```powershell
+   Add-DnsClientNrptRule -Namespace ".workstation.internal" -NameServers "127.0.0.1"
+   ```
+
+   Every `*.workstation.internal` name now resolves to Traefik with no per-service change. (If you
+   point the whole adapter at `127.0.0.1` instead, make sure Acrylic has upstream resolvers set in
+   `AcrylicConfiguration.ini`, otherwise all other lookups break.)
 
 3. Trust the CA root so certificates validate (PowerShell as administrator). Copy the root from the
    distribution, for example `\\wsl$\<distro>\home\<you>\.k3s-workstation-platform\ca\root_ca.crt`:
