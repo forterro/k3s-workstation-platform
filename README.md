@@ -1,34 +1,46 @@
 # k3s Workstation Platform
 
-Reproducible, GitOps-managed base Kubernetes platform for an AI-oriented workstation running on
-WSL2 and k3s. This repository provides the imperative seed that bootstraps the local cluster and
-hands off to ArgoCD, which then reconciles the rest of the platform from git.
+Reproducible, GitOps-managed Kubernetes base platform for an AI-oriented workstation on WSL2 and k3s.
+
+A small imperative seed bootstraps the cluster. ArgoCD then runs everything else from git.
 
 This repository is the generic base platform layer.
 
-## Model in one paragraph
+## How it works
 
-A minimal imperative seed (this project's Python generator) installs the strict minimum required for
-ArgoCD to run: cert-manager and ArgoCD itself (k3s provides the flannel CNI). Everything else is
-declared as per-brick umbrella charts and reconciled by ArgoCD via an app-of-apps. Updates are
-detected by Renovate, flow through gitflow, and ship as semantic-version releases that you pin.
+The model is simple:
 
-## Scope
+1. A tiny Python seed installs the bare minimum ArgoCD needs to start.
+2. ArgoCD takes over and reconciles the rest from git, through an app-of-apps.
+3. Renovate proposes updates. They flow through gitflow and ship as pinned releases.
 
-The workstation is provisioned from the clone of this repository, on the machine it runs on.
+The seed installs only three charts: cert-manager, MetalLB and ArgoCD. k3s provides the flannel CNI.
+
+Those three charts are not special. They live in `umbrella-charts/`, like every other workload. Once
+ArgoCD is up, it adopts and reconciles the very same charts. Nothing stays outside GitOps.
+
+```mermaid
+flowchart LR
+  seed[Python seed] --> k3s[k3s]
+  seed --> cm[cert-manager]
+  seed --> mlb[MetalLB]
+  seed --> argo[ArgoCD]
+  argo -->|app-of-apps| apps[apps/*]
+  apps --> charts[umbrella-charts/*]
+```
 
 ## Requirements
 
-- `uv` (Python project and dependency manager)
-- A Linux host with systemd active (WSL2 with systemd enabled is the design target)
-- `sudo` access: k3s and the CLI tools are installed system-wide
+- `uv` for the Python project.
+- A Linux host with systemd active. WSL2 with systemd enabled is the design target.
+- `sudo` access. k3s and the CLI tools install system-wide.
 
-The bootstrap installs any missing or outdated CLI tools itself, pinned in `tool-versions.yaml`
-(kubectl, helm, sops, age, step), and installs k3s if absent. Only `uv` must be present beforehand.
+Only `uv` must be present up front. The bootstrap installs everything else: kubectl, helm, sops, age
+and step (pinned in `tool-versions.yaml`), plus k3s.
 
 ## Quickstart
 
-On a fresh Ubuntu, install the prerequisites and clone the repository:
+Install the prerequisites and clone the repository:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y git curl
@@ -38,145 +50,184 @@ git clone https://github.com/forterro/k3s-workstation-platform.git
 cd k3s-workstation-platform
 ```
 
-Then create the environment and run the bootstrap:
+Create the environment and deploy:
 
 ```bash
-uv sync                                                 # create the locked environment
-uv run k3s-workstation-bootstrap preflight              # report host and tooling status
-uv run k3s-workstation-bootstrap bootstrap --dry-run    # preview without changing anything
+uv sync                                                 # locked environment
+uv run k3s-workstation-bootstrap preflight              # check host and tooling
+uv run k3s-workstation-bootstrap bootstrap --dry-run    # preview, no changes
 uv run k3s-workstation-bootstrap bootstrap              # deploy
 ```
 
-## What `bootstrap` does
+The bootstrap mutates the machine it runs on. Run it on the target workstation.
 
-`bootstrap` mutates the machine it runs on, so run it on the target workstation.
+## What the bootstrap does
 
-1. Installs any missing or outdated CLI tools into `/usr/local/bin` (sudo).
+First it prepares the host:
+
+1. Installs missing or outdated CLI tools into `/usr/local/bin` (sudo).
 2. Generates a local age key for SOPS if none exists.
-3. Installs and starts k3s (flannel CNI, Traefik disabled) (sudo, systemd service).
-4. Applies the seed from `umbrella-charts/` (the single source of truth): cert-manager, the local CA
-   material (generated on first run) and its ACME ClusterIssuer, MetalLB, then ArgoCD and the root
-   app-of-apps. ArgoCD afterwards adopts and reconciles the seed-installed charts via `apps/`.
 
-ArgoCD then tracks the git repository set in `rootApp` (`bootstrap/helm/root-app/values.yaml`) and
-reconciles the child Applications under `apps/`.
+Then it runs the seed phases in order:
 
-## Verify
+1. Installs and starts k3s. Traefik and the built-in servicelb are disabled.
+2. Installs cert-manager.
+3. Generates the local CA on first run and applies its ACME `ClusterIssuer`.
+4. Installs ArgoCD (with the KSOPS secrets plugin).
+5. Installs MetalLB and pins the Traefik LoadBalancer IP.
+6. Installs the ArgoCD root app-of-apps.
+
+From there, ArgoCD tracks the git repository set in `rootApp` (see
+[bootstrap/helm/root-app/values.yaml](bootstrap/helm/root-app/values.yaml)) and reconciles the child
+Applications under `apps/`.
+
+## Verify the install
 
 The k3s kubeconfig is written to `/etc/rancher/k3s/k3s.yaml`:
 
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-kubectl get nodes            # the node should be Ready
-kubectl get pods -A          # cert-manager and ArgoCD pods Running
-kubectl -n argocd get application root
+kubectl get nodes                        # the node should be Ready
+kubectl -n argocd get applications       # all Synced and Healthy
+kubectl -n traefik get svc traefik       # EXTERNAL-IP is the fixed LoadBalancer IP
 ```
 
-Access the ArgoCD UI:
+## Open the ArgoCD UI
+
+Read the initial admin password, then port-forward the server:
 
 ```bash
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d; echo
 kubectl -n argocd port-forward svc/argocd-server 8080:443
-# then open https://localhost:8080 (user: admin)
 ```
 
-## Certificates and local access
+Open `https://localhost:8080` and log in as `admin`.
 
-The platform runs an internal ACME certificate authority (step-ca) and issues TLS certificates
-through cert-manager. The CA material is generated locally, kept under
-`~/.k3s-workstation-platform/ca`, and never committed to git. The bootstrap generates it on first
-run (if absent) and applies the CA ConfigMaps, Secrets and the ACME ClusterIssuer to the cluster;
-the step-ca workload consumes them. To rotate the CA:
+Once DNS is set up (see below), the UI is also reachable at
+`https://argocd.workstation.internal`.
+
+## Certificates
+
+- The platform runs its own ACME certificate authority, step-ca. cert-manager issues the certs.
+- The CA material lives under `~/.k3s-workstation-platform/ca`. It is never committed to git.
+- The bootstrap generates it on first run, then applies the CA ConfigMaps, Secrets and the ACME
+  `ClusterIssuer`. The step-ca workload consumes them.
+- Rotate the CA with `FORCE=1 make generate-ca`.
+
+## Local access
+
+How access works:
+
+- Every service lives under `*.workstation.internal`.
+- Services share one Traefik LoadBalancer IP and differ only by HTTP host. One wildcard record
+  covers them all.
+- servicelb (klipper) is disabled. MetalLB (L2 mode) pins Traefik to a fixed IP.
+- The IP is stored as `loadbalancer_ip` in `~/.k3s-workstation-platform/config.yaml`.
+- In-cluster, CoreDNS already resolves the domain to Traefik (this covers the ACME http-01
+  challenge).
+
+### Set the LoadBalancer IP
+
+- The bootstrap prompts for it on first run.
+- Pick a free address inside the WSL2 NAT subnet, in the same range as the node `eth0` (for example
+  `172.17.47.200`).
+- The subnet can move after an HNS reset. Re-check the IP if resolution breaks.
 
 ```bash
-FORCE=1 make generate-ca
+# during bootstrap
+uv run k3s-workstation-bootstrap bootstrap --loadbalancer-ip 172.17.47.200
+
+# later (re-pins the pool and restarts Traefik)
+uv run k3s-workstation-bootstrap set-loadbalancer-ip 172.17.47.200
 ```
 
-Traefik serves ingress over a fixed LoadBalancer address. The k3s built-in servicelb (klipper) is
-disabled and MetalLB (L2 mode) owns LoadBalancer services, so Traefik keeps a stable, well-known IP
-instead of tracking the node IP. That IP is stored as `loadbalancer_ip` in
-`~/.k3s-workstation-platform/config.yaml`: the bootstrap prompts for it on first run (or take it from
-`--loadbalancer-ip`), and `k3s-workstation-bootstrap set-loadbalancer-ip <ip>` changes it later and
-restarts the affected services. Pick a free address inside the WSL2 NAT subnet (the same range as the
-node eth0 address, for example `172.17.47.200`); the subnet can change on an HNS reset, so re-check it
-if resolution breaks. Services are exposed under the `workstation.internal` domain, which CoreDNS
-resolves to Traefik in-cluster (this covers the ACME http-01 challenge). Because every service is
-reached through the single Traefik address and differentiated by the HTTP host, one wildcard record
-covers all current and future services.
+### Reach it from Windows
 
-### Resolve `*.workstation.internal` from the Windows host
+One-time, Windows-side setup. Nothing runs in the cluster for it.
 
-To reach services from the Windows host, resolve `*.workstation.internal` to the Traefik
-LoadBalancer IP and trust the CA root. This is a Windows-side, one-time setup; nothing runs in the
-cluster for it. Keep the default WSL2 NAT networking (do not enable mirrored mode): in NAT the
-MetalLB address is reachable from Windows, and there is no shared port 53 to fight over.
+- Keep the default WSL2 NAT networking. Do not enable mirrored mode.
+- In NAT the MetalLB address is reachable from Windows, with no shared port 53 to fight over.
 
-The target is the fixed Traefik `EXTERNAL-IP`, which equals the `loadbalancer_ip` you configured (the
-address MetalLB hands to Traefik). Confirm it from the distribution:
+**1. Find the Traefik IP**
+
+- It equals the `loadbalancer_ip` you configured.
+- Do not use `127.0.0.1`. MetalLB announces the address on the node interface, so only that IP
+  answers on 80/443.
+- The IP survives `wsl --shutdown`, but must stay in the WSL2 NAT subnet. After an HNS reset, run
+  `set-loadbalancer-ip` with a new address and update Acrylic.
 
 ```bash
 KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n traefik get svc traefik \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; echo
 ```
 
-It is the `172.x` address you chose (for example `172.17.47.200`). Do NOT use `127.0.0.1`: MetalLB
-announces the address on the node interface, so only that IP answers on 80/443. The address stays
-fixed across `wsl --shutdown`, but it must remain inside the WSL2 NAT subnet; if an HNS reset moves
-the subnet, run `set-loadbalancer-ip` with an address in the new range and update the Acrylic entry
-below.
+**2. Point Acrylic DNS at it**
 
-1. Install [Acrylic DNS Proxy](https://mayakron.altervista.org/support/acrylic/Home.htm) and add a
-   wildcard entry to its `AcrylicHosts.txt` (it supports wildcards; the Windows hosts file does
-   Point it at the fixed Traefik IP found above:
+- Install [Acrylic DNS Proxy](https://mayakron.altervista.org/support/acrylic/Home.htm). It supports
+  wildcards; the Windows hosts file does not.
+- Add a wildcard entry to `AcrylicHosts.txt`:
 
-   ```text
-   172.17.47.200 *.workstation.internal
-   ```
+  ```text
+  172.17.47.200 *.workstation.internal
+  ```
 
-   Bind Acrylic to the loopback specifically. In `AcrylicConfiguration.ini` set:
+- Bind Acrylic to the loopback in `AcrylicConfiguration.ini`:
 
-   ```ini
-   LocalIPv4BindingAddress=127.0.0.1
-   ```
+  ```ini
+  LocalIPv4BindingAddress=127.0.0.1
+  ```
 
-   This is required: WSL2 NAT relies on the Windows ICS service (`SharedAccess`), which already holds
-   `0.0.0.0:53` on IPv4. Leaving Acrylic on `0.0.0.0` lets it grab only IPv6 UDP 53, so IPv4 queries
-   to `127.0.0.1` (what `nslookup`/NRPT use) hit `SharedAccess` and get no answer. Binding the
-   specific `127.0.0.1` address takes precedence over the ICS wildcard for loopback traffic.
+- This binding is required. WSL2 NAT uses the Windows ICS service (`SharedAccess`), which already
+  holds `0.0.0.0:53` on IPv4. On `0.0.0.0`, Acrylic wins only IPv6 UDP 53, so IPv4 queries to
+  `127.0.0.1` hit ICS and get no answer. Binding `127.0.0.1` specifically wins loopback traffic.
+- Restart the service: `Restart-Service AcrylicDNSProxySvc -Force`.
 
-   Restart the Acrylic service (`Restart-Service AcrylicDNSProxySvc -Force`). Then route only the
-   `workstation.internal` suffix to Acrylic (which listens on the Windows loopback) with an NRPT rule
-   (PowerShell as administrator), so the rest of your DNS is untouched:
+**3. Route the suffix to Acrylic**
 
-   ```powershell
-   Add-DnsClientNrptRule -Namespace ".workstation.internal" -NameServers "127.0.0.1"
-   ```
+- Add an NRPT rule (PowerShell as administrator). The rest of your DNS is untouched:
 
-   Every `*.workstation.internal` name now resolves to Traefik with no per-service change. Verify:
+  ```powershell
+  Add-DnsClientNrptRule -Namespace ".workstation.internal" -NameServers "127.0.0.1"
+  ```
 
-   ```powershell
-   Get-NetUDPEndpoint -LocalPort 53 | Select-Object LocalAddress, OwningProcess  # 127.0.0.1 -> Acrylic
-   nslookup toto.workstation.internal 127.0.0.1                                   # -> the Traefik IP
-   Resolve-DnsName headlamp.workstation.internal                                  # via the NRPT rule
-   ```
+- Verify:
 
-2. Trust the CA root so certificates validate (PowerShell as administrator). Copy the root from the
-   distribution, for example `\\wsl$\<distro>\home\<you>\.k3s-workstation-platform\ca\root_ca.crt`:
+  ```powershell
+  Get-NetUDPEndpoint -LocalPort 53 | Select-Object LocalAddress, OwningProcess  # 127.0.0.1 -> Acrylic
+  nslookup toto.workstation.internal 127.0.0.1                                   # -> the Traefik IP
+  Resolve-DnsName headlamp.workstation.internal                                  # via the NRPT rule
+  ```
 
-   ```powershell
-   Import-Certificate -FilePath root_ca.crt -CertStoreLocation Cert:\LocalMachine\Root
-   ```
+**4. Trust the CA root**
 
-Open `https://headlamp.workstation.internal` from Windows once the Headlamp certificate is issued.
+- Needed so certificates validate (PowerShell as administrator).
+- Copy the root from `\\wsl$\<distro>\home\<you>\.k3s-workstation-platform\ca\root_ca.crt`, then:
 
-## Try it in a disposable environment
+  ```powershell
+  Import-Certificate -FilePath root_ca.crt -CertStoreLocation Cert:\LocalMachine\Root
+  ```
 
-The bootstrap is destructive to the host. To test it safely on WSL2, import the latest Ubuntu LTS
-as a throwaway, named distribution and discard it afterwards:
+Once the Headlamp certificate is issued, open `https://headlamp.workstation.internal` from Windows.
+
+## Reset the cluster
+
+Remove k3s and its cluster from the distribution, without discarding the distribution:
+
+```bash
+uv run k3s-workstation-bootstrap reset
+```
+
+This is handy to re-run the bootstrap from a clean state.
+
+## Test in a disposable environment
+
+The bootstrap is destructive to the host. Test it safely in a throwaway environment.
+
+On WSL2, import the latest Ubuntu LTS as a named distribution and discard it afterwards:
 
 ```powershell
-# import a base rootfs (download the latest Ubuntu LTS WSL rootfs, or `wsl --export` an existing distro)
 wsl.exe --install Ubuntu-26.04
 wsl -d Ubuntu-26.04
 # enable systemd, then restart the distro:
@@ -189,15 +240,6 @@ wsl --unregister Ubuntu-26.04
 On a non-WSL Ubuntu host, Canonical Multipass gives a throwaway VM (`multipass launch`,
 `multipass delete --purge`).
 
-## Reset
-
-To completely remove k3s and its cluster from a distribution (without discarding the distribution),
-for example to re-run the bootstrap from a clean state:
-
-```bash
-uv run k3s-workstation-bootstrap reset
-```
-
 ## Repository layout
 
 ```text
@@ -206,9 +248,9 @@ tool-versions.yaml           # pinned CLI tool versions
 src/workstation_bootstrap/   # imperative seed generator
 bootstrap/helm/root-app/     # ArgoCD app-of-apps entrypoint (the only seed-only chart)
 umbrella-charts/             # single source of truth: every workload chart (seed-installed + GitOps)
+apps/                        # child ArgoCD Applications reconciled by the root app-of-apps
 secrets/                     # SOPS-encrypted secrets rendered by the KSOPS plugin
 scripts/                     # operational scripts (CA generation)
-apps/                        # child ArgoCD Applications reconciled by the root app-of-apps
 config/                      # optional local value overrides
 ```
 
@@ -225,6 +267,6 @@ make test      # pytest
 
 Apache License 2.0. See [LICENSE](LICENSE).
 
-## Open items
+## Roadmap
 
-- CI workflows (gitflow, quality gates, changelog gate) are added in a dedicated increment.
+- CI workflows (gitflow, quality gates, changelog gate) land in a dedicated increment.
