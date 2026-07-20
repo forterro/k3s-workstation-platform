@@ -75,7 +75,8 @@ Then it runs the seed phases in order:
 3. Generates the local CA on first run and applies its ACME `ClusterIssuer`.
 4. Installs ArgoCD (with the KSOPS secrets plugin).
 5. Installs MetalLB and pins the Traefik LoadBalancer IP.
-6. Installs the ArgoCD root app-of-apps.
+6. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
+7. Installs the ArgoCD root app-of-apps.
 
 From there, ArgoCD tracks the git repository set in `rootApp` (see
 [bootstrap/helm/root-app/values.yaml](bootstrap/helm/root-app/values.yaml)) and reconciles the child
@@ -110,21 +111,18 @@ Once DNS is set up (see below), the UI is also reachable at
 
 ## Open Grafana
 
-The observability stack ships Grafana with Prometheus as the default datasource. Admin credentials
-live in a stable, out-of-git secret (`grafana-admin`), created once so ArgoCD never rotates it. Read
-the password:
+The observability stack ships Grafana with Prometheus as the default datasource. The bootstrap
+generates a stable admin password on first run, stores it locally under
+`~/.k3s-workstation-platform/grafana/admin-password` (never committed to git) and publishes it as the
+`grafana-admin` secret that Grafana consumes via `admin.existingSecret`. This keeps the password
+stable across reconciles and cluster resets. Read it from either source:
 
 ```bash
+cat ~/.k3s-workstation-platform/grafana/admin-password
+
+# or from the cluster secret
 kubectl -n observability get secret grafana-admin \
   -o jsonpath='{.data.admin-password}' | base64 -d; echo
-```
-
-If the secret does not exist yet, create it (any password of your choice):
-
-```bash
-kubectl -n observability create secret generic grafana-admin \
-  --from-literal=admin-user=admin \
-  --from-literal=admin-password="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
 ```
 
 Once DNS is set up (see below), open `https://grafana.workstation.internal` and log in as `admin`.

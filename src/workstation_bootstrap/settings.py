@@ -7,6 +7,7 @@ first bootstrap and persisted so it can be overridden later.
 from __future__ import annotations
 
 import ipaddress
+import secrets
 from pathlib import Path
 
 import yaml
@@ -19,11 +20,38 @@ CA_DIR = CONFIG_DIR / "ca"
 DEFAULT_REPO_URL = "https://github.com/forterro/k3s-workstation-platform.git"
 DEFAULT_REVISION = "main"
 LOADBALANCER_IP_KEY = "loadbalancer_ip"
+GRAFANA_ADMIN_USER = "admin"
 
 
 def ca_dir() -> Path:
     """Local directory holding the workstation CA material (never committed to git)."""
     return CA_DIR
+
+
+def grafana_admin_password_path() -> Path:
+    """Local file holding the Grafana admin password (never committed to git)."""
+    return CONFIG_DIR / "grafana" / "admin-password"
+
+
+def ensure_grafana_admin_password() -> str:
+    """Return the Grafana admin password, generating and persisting it on first use.
+
+    The value is stored locally under ~/.k3s-workstation-platform/grafana so it stays stable across
+    cluster resets and re-bootstraps. The seed publishes it as the ``grafana-admin`` secret that the
+    Grafana chart consumes via ``admin.existingSecret``; without a stable secret the chart would
+    regenerate a random password on every ArgoCD reconcile.
+    """
+    path = grafana_admin_password_path()
+    if path.exists():
+        existing = path.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+    path.parent.mkdir(parents=True, exist_ok=True)
+    password = secrets.token_urlsafe(24)
+    path.write_text(password + "\n", encoding="utf-8")
+    path.chmod(0o600)
+    console.ok(f"generated Grafana admin password at {path}")
+    return password
 
 
 def _detect_repo_url(root: Path) -> str | None:

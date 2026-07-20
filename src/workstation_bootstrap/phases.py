@@ -27,6 +27,9 @@ _METALLB_POOL_NAME = "workstation-pool"
 _METALLB_L2_NAME = "workstation-l2"
 _TRAEFIK_NAMESPACE = "traefik"
 
+_OBSERVABILITY_NAMESPACE = "observability"
+_GRAFANA_ADMIN_SECRET = "grafana-admin"
+
 # Marks resources that are managed imperatively (outside git) so the ArgoCD step-ca application
 # does not treat them as extraneous and prune them.
 _ARGOCD_IGNORE = "argocd.argoproj.io/compare-options=IgnoreExtraneous"
@@ -344,6 +347,36 @@ def reconfigure_loadbalancer_ip(context: Context, ip: str) -> None:
     console.ok(f"Traefik LoadBalancer IP updated to {new_ip}")
 
 
+def _phase_grafana_admin_secret(context: Context) -> None:
+    """Publish the stable Grafana admin secret before ArgoCD deploys Grafana.
+
+    The Grafana chart regenerates a random admin password on every render, so ArgoCD would rewrite
+    it on each reconcile (perpetual rollouts). Instead the chart references this out-of-git secret
+    via ``admin.existingSecret``. The password is generated once and persisted locally, so the value
+    stays stable; the apply is idempotent.
+    """
+    password = settings.ensure_grafana_admin_password()
+    env = _kubectl_env()
+    ignore = [_ARGOCD_IGNORE]
+    _apply_namespace(_OBSERVABILITY_NAMESPACE, env, annotations=ignore)
+    _apply_generated(
+        [
+            "kubectl",
+            "create",
+            "secret",
+            "generic",
+            _GRAFANA_ADMIN_SECRET,
+            "--namespace",
+            _OBSERVABILITY_NAMESPACE,
+            f"--from-literal=admin-user={settings.GRAFANA_ADMIN_USER}",
+            f"--from-literal=admin-password={password}",
+        ],
+        env,
+        annotations=ignore,
+    )
+    console.ok("Grafana admin secret ensured in the observability namespace")
+
+
 def _phase_root_app(context: Context) -> None:
     chart = context.root / "bootstrap" / "helm" / "root-app"
     if not chart.exists():
@@ -432,6 +465,11 @@ PHASE_PLAN: tuple[Phase, ...] = (
         "metallb",
         "Install MetalLB and pin the LoadBalancer pool to the configured Traefik IP",
         _phase_metallb,
+    ),
+    Phase(
+        "grafana-admin-secret",
+        "Publish the stable Grafana admin secret consumed by the observability stack",
+        _phase_grafana_admin_secret,
     ),
     Phase("root-app", "Apply the ArgoCD root app-of-apps", _phase_root_app),
     Phase(

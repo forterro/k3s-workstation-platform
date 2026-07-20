@@ -38,6 +38,31 @@ def test_ensure_sops_age_secret_requires_age_key(monkeypatch, tmp_path):
         phases._ensure_sops_age_secret(phases.Context(root=tmp_path, dry_run=False))
 
 
+def test_phase_grafana_admin_secret_applies_namespace_and_secret(monkeypatch, tmp_path):
+    monkeypatch.setattr(phases.settings, "ensure_grafana_admin_password", lambda: "s3cr3t-pw")
+
+    calls: list[list[str]] = []
+
+    class _Result:
+        stdout = "rendered-manifest"
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return _Result()
+
+    monkeypatch.setattr(phases.command, "run", fake_run)
+
+    phases._phase_grafana_admin_secret(phases.Context(root=tmp_path, dry_run=False))
+
+    joined = [" ".join(cmd) for cmd in calls]
+    assert any("create namespace observability" in c for c in joined)
+    assert any("create secret generic grafana-admin" in c for c in joined)
+    assert any("--from-literal=admin-user=admin" in c for c in joined)
+    assert any("--from-literal=admin-password=s3cr3t-pw" in c for c in joined)
+    assert any("--namespace observability" in c for c in joined)
+
+
+
 def test_clusterissuer_manifest_embeds_root_ca_bundle(tmp_path):
     ca = tmp_path
     (ca / "root_ca.crt").write_bytes(b"ROOT-CERT-PEM")

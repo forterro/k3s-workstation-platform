@@ -78,6 +78,27 @@ def test_ensure_loadbalancer_ip_prompts_and_persists(monkeypatch, tmp_path):
     assert persisted["loadbalancer_ip"] == "172.17.47.200"
 
 
+def test_ensure_grafana_admin_password_generates_and_persists(monkeypatch, tmp_path):
+    _redirect_config(monkeypatch, tmp_path)
+
+    password = settings.ensure_grafana_admin_password()
+
+    assert password
+    path = settings.grafana_admin_password_path()
+    assert path.read_text(encoding="utf-8").strip() == password
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_ensure_grafana_admin_password_reuses_existing(monkeypatch, tmp_path):
+    _redirect_config(monkeypatch, tmp_path)
+    path = settings.grafana_admin_password_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("kept-password\n", encoding="utf-8")
+
+    assert settings.ensure_grafana_admin_password() == "kept-password"
+
+
+
 def test_ensure_loadbalancer_ip_override_replaces_value(monkeypatch, tmp_path):
     _redirect_config(monkeypatch, tmp_path)
     existing = {"platform_repo_url": "https://example.com/kept.git", "loadbalancer_ip": "10.0.0.5"}
