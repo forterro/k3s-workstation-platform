@@ -29,5 +29,8 @@ traefik:
     prometheus:
       addEntryPointsLabels: true
       addServicesLabels: true
+      # Dedicated metrics service selected by the ServiceMonitor (targetPort: metrics).
+      service:
+        enabled: true
       serviceMonitor:
         enabled: true
