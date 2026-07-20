@@ -1,0 +1,11 @@
+apiVersion: v2
+name: node-exporter
+description: Prometheus node-exporter for the workstation platform
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://prometheus-community.github.io/helm-charts
+  - name: prometheus-node-exporter
+    repository: https://prometheus-community.github.io/helm-charts
+    version: 4.56.1

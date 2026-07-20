@@ -1,0 +1,37 @@
+# Prometheus server acts purely as the metrics store for the workstation platform.
+# Scraping is delegated to Alloy, which pushes samples through the remote-write
+# receiver. The bundled exporters and the alertmanager/pushgateway subcharts are
+# disabled: node-exporter and kube-state-metrics are deployed as their own bricks.
+prometheus:
+  alertmanager:
+    enabled: false
+  kube-state-metrics:
+    enabled: false
+  prometheus-node-exporter:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+
+  server:
+    retention: 15d
+    # Accept samples pushed by Alloy over the Prometheus remote-write protocol.
+    # (web.enable-lifecycle is kept for the configmap-reload sidecar.)
+    extraFlags:
+      - web.enable-lifecycle
+      - web.enable-remote-write-receiver
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+
+  # Alloy owns discovery/scraping, so Prometheus only scrapes itself.
+  serverFiles:
+    prometheus.yml:
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets:
+                - localhost:9090

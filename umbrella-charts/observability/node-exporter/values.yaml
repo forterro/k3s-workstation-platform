@@ -1,0 +1,4 @@
+# Host-level metrics exporter (DaemonSet). Discovered and scraped by Alloy.
+prometheus-node-exporter:
+  service:
+    port: 9100

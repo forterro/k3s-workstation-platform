@@ -1,0 +1,91 @@
+# Grafana Alloy runs as a DaemonSet and is the single metrics collector of the
+# platform. It discovers node-exporter, kube-state-metrics and the kubelet
+# cAdvisor endpoints, then ships all samples to the Prometheus remote-write
+# receiver.
+alloy:
+  alloy:
+    configMap:
+      content: |-
+        // ====================================================================
+        // Workstation metrics pipeline: scrape -> remote_write to Prometheus.
+        // ====================================================================
+
+        // -- Service discovery ----------------------------------------------
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.kubernetes "nodes" {
+          role = "node"
+        }
+
+        // -- node-exporter --------------------------------------------------
+        discovery.relabel "node_exporter" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex         = "prometheus-node-exporter"
+            action        = "keep"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label  = "instance"
+          }
+        }
+
+        prometheus.scrape "node_exporter" {
+          targets    = discovery.relabel.node_exporter.output
+          forward_to = [prometheus.remote_write.default.receiver]
+          job_name   = "node-exporter"
+        }
+
+        // -- kube-state-metrics ---------------------------------------------
+        discovery.relabel "kube_state_metrics" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex         = "kube-state-metrics"
+            action        = "keep"
+          }
+        }
+
+        prometheus.scrape "kube_state_metrics" {
+          targets    = discovery.relabel.kube_state_metrics.output
+          forward_to = [prometheus.remote_write.default.receiver]
+          job_name   = "kube-state-metrics"
+        }
+
+        // -- kubelet / cAdvisor ---------------------------------------------
+        discovery.relabel "cadvisor" {
+          targets = discovery.kubernetes.nodes.targets
+
+          rule {
+            replacement  = "/metrics/cadvisor"
+            target_label = "__metrics_path__"
+          }
+        }
+
+        prometheus.scrape "cadvisor" {
+          targets           = discovery.relabel.cadvisor.output
+          forward_to        = [prometheus.remote_write.default.receiver]
+          job_name          = "kubernetes-cadvisor"
+          scheme            = "https"
+          bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+          tls_config {
+            insecure_skip_verify = true
+          }
+        }
+
+        // -- Remote write ---------------------------------------------------
+        prometheus.remote_write "default" {
+          endpoint {
+            url = "http://prometheus-server.observability.svc.cluster.local/api/v1/write"
+          }
+        }
+
+  controller:
+    type: daemonset

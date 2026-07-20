@@ -1,0 +1,31 @@
+# Values passed to the upstream Grafana subchart. Umbrella-level addons (the
+# IngressRoute and Certificate) live in templates/.
+grafana:
+  service:
+    type: ClusterIP
+
+  persistence:
+    enabled: true
+    size: 2Gi
+
+  # Prometheus (the workstation metrics store) provisioned as the default datasource.
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus-server.observability.svc.cluster.local
+          isDefault: true
+
+# Expose Grafana through Traefik over TLS, with a certificate issued by step-ca via cert-manager.
+ingressRoute:
+  enabled: true
+  host: grafana.workstation.internal
+  entryPoint: websecure
+  issuer: step-ca-acme
+  service:
+    name: grafana
+    port: 80

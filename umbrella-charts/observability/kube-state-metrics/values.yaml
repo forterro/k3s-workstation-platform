@@ -1,0 +1,4 @@
+# Kubernetes object metrics (Deployment). Discovered and scraped by Alloy.
+# Upstream defaults are sufficient for the workstation platform.
+kube-state-metrics:
+  replicas: 1
