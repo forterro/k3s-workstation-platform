@@ -110,12 +110,21 @@ Once DNS is set up (see below), the UI is also reachable at
 
 ## Open Grafana
 
-The observability stack ships Grafana with Prometheus as the default datasource. Read the generated
-admin password:
+The observability stack ships Grafana with Prometheus as the default datasource. Admin credentials
+live in a stable, out-of-git secret (`grafana-admin`), created once so ArgoCD never rotates it. Read
+the password:
 
 ```bash
-kubectl -n observability get secret grafana \
+kubectl -n observability get secret grafana-admin \
   -o jsonpath='{.data.admin-password}' | base64 -d; echo
+```
+
+If the secret does not exist yet, create it (any password of your choice):
+
+```bash
+kubectl -n observability create secret generic grafana-admin \
+  --from-literal=admin-user=admin \
+  --from-literal=admin-password="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
 ```
 
 Once DNS is set up (see below), open `https://grafana.workstation.internal` and log in as `admin`.
