@@ -93,15 +93,27 @@ FORCE=1 make generate-ca
 ```
 
 Traefik serves ingress over a LoadBalancer address (k3s servicelb assigns the node IP). Services are
-exposed under the `workstation.internal` domain, which CoreDNS resolves to Traefik in-cluster. To
-reach a service from the Windows host, resolve its hostname to the WSL2 IP and trust the CA root:
+exposed under the `workstation.internal` domain, which CoreDNS resolves to Traefik in-cluster.
+
+For the Windows host, the platform runs a small host-facing resolver (CoreDNS exposed on a
+LoadBalancer, port 53) that answers `*.workstation.internal`. Combined with WSL2 mirrored
+networking, every service resolves dynamically with no per-service hosts entry. Configure it once:
 
 ```powershell
-# map the hostname to the WSL2 IP (from `wsl hostname -I`) in
-# C:\Windows\System32\drivers\etc\hosts, for example:
-#   172.20.0.2  headlamp.workstation.internal
-# then import ~/.k3s-workstation-platform/ca/root_ca.crt into the Windows trust store
+# 1) enable WSL2 mirrored networking in C:\Users\<you>\.wslconfig, then `wsl --shutdown`:
+#   [wsl2]
+#   networkingMode=mirrored
+#
+# 2) send *.workstation.internal to the in-cluster resolver (reachable on localhost with mirrored):
+Add-DnsClientNrptRule -Namespace ".workstation.internal" -NameServers "127.0.0.1"
+#
+# 3) trust the CA root (copy from \\wsl$\<distro>\home\<you>\.k3s-workstation-platform\ca\root_ca.crt):
+Import-Certificate -FilePath "root_ca.crt" -CertStoreLocation Cert:\LocalMachine\Root
 ```
+
+New services then just work at `https://<name>.workstation.internal` once they declare an
+IngressRoute for that host. To remove the rule later:
+`Get-DnsClientNrptRule | Where-Object Namespace -eq '.workstation.internal' | Remove-DnsClientNrptRule`.
 
 ## Try it in a disposable environment
 

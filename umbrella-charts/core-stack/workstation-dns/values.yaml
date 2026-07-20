@@ -3,3 +3,15 @@
 # ConfigMap entries into the default CoreDNS server block.
 domain: workstation.internal
 traefikService: traefik.traefik.svc.cluster.local
+
+# Host-facing resolver: a small CoreDNS exposed via a LoadBalancer that answers *.<domain> for the
+# Windows host, so every service resolves without editing the hosts file. Point Windows at it with
+# an NRPT rule (see the README). With WSL2 mirrored networking, Traefik is reachable from Windows on
+# localhost, so the wildcard resolves to 127.0.0.1 and stays valid across restarts.
+hostResolver:
+  enabled: true
+  resolveTo: 127.0.0.1
+  port: 53
+  # renovate: datasource=docker depName=coredns/coredns
+  image: coredns/coredns:1.11.3
+

@@ -1,0 +1,94 @@
+{{- if .Values.hostResolver.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workstation-host-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: workstation-host-dns
+data:
+  Corefile: |
+    {{ .Values.domain }}:5353 {
+        template IN A {
+            answer "{{ "{{ .Name }}" }} 60 IN A {{ .Values.hostResolver.resolveTo }}"
+        }
+        template IN AAAA
+        errors
+    }
+    .:5353 {
+        forward . /etc/resolv.conf
+        cache 30
+        errors
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workstation-host-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: workstation-host-dns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: workstation-host-dns
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: workstation-host-dns
+      annotations:
+        checksum/config: {{ toYaml .Values.hostResolver | sha256sum }}
+    spec:
+      containers:
+        - name: coredns
+          image: {{ .Values.hostResolver.image | quote }}
+          args: ["-conf", "/etc/coredns/Corefile"]
+          ports:
+            - name: dns-udp
+              containerPort: 5353
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 5353
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/coredns
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 5353
+            initialDelaySeconds: 2
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: workstation-host-dns
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workstation-host-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: workstation-host-dns
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: workstation-host-dns
+  ports:
+    - name: dns-udp
+      port: {{ .Values.hostResolver.port }}
+      targetPort: 5353
+      protocol: UDP
+    - name: dns-tcp
+      port: {{ .Values.hostResolver.port }}
+      targetPort: 5353
+      protocol: TCP
+{{- end }}
