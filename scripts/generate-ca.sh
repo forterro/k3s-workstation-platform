@@ -47,5 +47,9 @@ cp "$STEPPATH/secrets/intermediate_ca_key" "$ca_dir/intermediate_ca_key"
 printf '%s' "$ca_password" > "$ca_dir/ca.pass"
 chmod 600 "$ca_dir"/root_ca_key "$ca_dir"/intermediate_ca_key "$ca_dir"/ca.pass
 
+# step ca init writes absolute paths into ca.json based on the temporary STEPPATH; rewrite them to
+# the step-ca container layout (/home/step) where the ConfigMaps/Secrets/PVC are mounted.
+sed -i "s|${STEPPATH//./\\.}|/home/step|g" "$ca_dir/ca.json"
+
 echo "==> Done. Root CA fingerprint:"
 step certificate fingerprint "$ca_dir/root_ca.crt"
