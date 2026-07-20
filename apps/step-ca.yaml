@@ -14,6 +14,15 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: step-ca
+  # The API server defaults apiVersion/kind onto each StatefulSet volumeClaimTemplate, which the
+  # Helm manifest omits; ignore only those fields to avoid a perpetual OutOfSync.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: step-ca
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[]?.apiVersion
+        - .spec.volumeClaimTemplates[]?.kind
   syncPolicy:
     automated:
       prune: true
