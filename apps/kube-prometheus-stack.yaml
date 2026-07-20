@@ -19,3 +19,12 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # The stack's large CRDs (Prometheus, Alertmanager, ...) can take longer to become
+      # Established than a single sync allows, so the first attempt may fail applying the CRs.
+      # Retry lets ArgoCD re-run discovery once the CRDs are registered and converge.
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 3m
