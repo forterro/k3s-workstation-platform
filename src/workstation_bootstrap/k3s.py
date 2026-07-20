@@ -1,8 +1,9 @@
 """k3s cluster provisioning.
 
 k3s is installed with its default networking: the flannel CNI, kube-proxy, and the kube-router
-network policy controller, which enforces standard Kubernetes NetworkPolicy. Only Traefik is
-disabled so ingress can be managed as a platform brick.
+network policy controller, which enforces standard Kubernetes NetworkPolicy. Traefik is disabled so
+ingress can be managed as a platform brick, and the built-in servicelb (klipper) is disabled so
+MetalLB owns LoadBalancer services and can pin Traefik to a fixed address.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ UNINSTALL_SCRIPT = Path("/usr/local/bin/k3s-uninstall.sh")
 
 K3S_EXEC_FLAGS = (
     "--disable=traefik",
+    "--disable=servicelb",
     "--write-kubeconfig-mode=644",
 )
 

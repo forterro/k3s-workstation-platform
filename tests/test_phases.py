@@ -126,3 +126,76 @@ def test_phase_step_ca_material_applies_all_resources(monkeypatch, tmp_path):
         "annotate --local" in c and "argocd.argoproj.io/compare-options=IgnoreExtraneous" in c
         for c in joined
     )
+
+
+def test_metallb_pool_manifest_pins_single_address():
+    manifest = phases._metallb_pool_manifest("172.17.47.200")
+
+    assert "kind: IPAddressPool" in manifest
+    assert "name: workstation-pool" in manifest
+    assert "namespace: metallb-system" in manifest
+    assert "- 172.17.47.200/32" in manifest
+    assert "kind: L2Advertisement" in manifest
+    assert "- workstation-pool" in manifest
+
+
+def test_phase_metallb_installs_chart_and_applies_pool(monkeypatch, tmp_path):
+    chart = tmp_path / "bootstrap" / "helm" / "metallb"
+    chart.mkdir(parents=True)
+
+    installed: list[dict] = []
+    monkeypatch.setattr(phases.helm, "update_dependencies", lambda c: None)
+    monkeypatch.setattr(
+        phases.helm,
+        "install",
+        lambda c, release, namespace, values: installed.append(
+            {"release": release, "namespace": namespace}
+        ),
+    )
+    monkeypatch.setattr(
+        phases.settings, "ensure_loadbalancer_ip", lambda root, override=None: "172.17.47.200"
+    )
+
+    applied: list[str] = []
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:3] == ["kubectl", "apply", "-f"]:
+            applied.append(kwargs.get("input_text", ""))
+
+        class _Result:
+            stdout = ""
+
+        return _Result()
+
+    monkeypatch.setattr(phases.command, "run", fake_run)
+
+    phases._phase_metallb(phases.Context(root=tmp_path, dry_run=False))
+
+    assert installed == [{"release": "metallb", "namespace": "metallb-system"}]
+    assert any("kind: IPAddressPool" in m and "172.17.47.200/32" in m for m in applied)
+
+
+def test_reconfigure_loadbalancer_ip_reapplies_and_restarts(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        phases.settings, "ensure_loadbalancer_ip", lambda root, override=None: override
+    )
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+
+        class _Result:
+            stdout = ""
+
+        return _Result()
+
+    monkeypatch.setattr(phases.command, "run", fake_run)
+
+    phases.reconfigure_loadbalancer_ip(
+        phases.Context(root=tmp_path, dry_run=False), "172.17.47.210"
+    )
+
+    joined = [" ".join(c) for c in calls]
+    assert any("kubectl apply -f -" in c for c in joined)
+    assert any("kubectl -n traefik rollout restart deployment" in c for c in joined)

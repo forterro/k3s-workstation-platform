@@ -92,48 +92,75 @@ the step-ca workload consumes them. To rotate the CA:
 FORCE=1 make generate-ca
 ```
 
-Traefik serves ingress over a LoadBalancer address (k3s servicelb assigns the node IP). Services are
-exposed under the `workstation.internal` domain, which CoreDNS resolves to Traefik in-cluster (this
-covers the ACME http-01 challenge). Because every service is reached through the single Traefik
-address and differentiated by the HTTP host, one wildcard record covers all current and future
-services.
+Traefik serves ingress over a fixed LoadBalancer address. The k3s built-in servicelb (klipper) is
+disabled and MetalLB (L2 mode) owns LoadBalancer services, so Traefik keeps a stable, well-known IP
+instead of tracking the node IP. That IP is stored as `loadbalancer_ip` in
+`~/.k3s-workstation-platform/config.yaml`: the bootstrap prompts for it on first run (or take it from
+`--loadbalancer-ip`), and `k3s-workstation-bootstrap set-loadbalancer-ip <ip>` changes it later and
+restarts the affected services. Pick a free address inside the WSL2 NAT subnet (the same range as the
+node eth0 address, for example `172.17.47.200`); the subnet can change on an HNS reset, so re-check it
+if resolution breaks. Services are exposed under the `workstation.internal` domain, which CoreDNS
+resolves to Traefik in-cluster (this covers the ACME http-01 challenge). Because every service is
+reached through the single Traefik address and differentiated by the HTTP host, one wildcard record
+covers all current and future services.
 
-To reach services from the Windows host, resolve `*.workstation.internal` to Traefik and trust the
-CA root. This is a Windows-side, one-time setup; nothing runs in the cluster for it.
+### Resolve `*.workstation.internal` from the Windows host
 
-1. Enable WSL2 mirrored networking so Traefik is reachable from Windows on `localhost`. In
-   `C:\Users\<you>\.wslconfig`:
+To reach services from the Windows host, resolve `*.workstation.internal` to the Traefik
+LoadBalancer IP and trust the CA root. This is a Windows-side, one-time setup; nothing runs in the
+cluster for it. Keep the default WSL2 NAT networking (do not enable mirrored mode): in NAT the
+MetalLB address is reachable from Windows, and there is no shared port 53 to fight over.
 
-   ```ini
-   [wsl2]
-   networkingMode=mirrored
-   ignoredPorts=53
-   ```
+The target is the fixed Traefik `EXTERNAL-IP`, which equals the `loadbalancer_ip` you configured (the
+address MetalLB hands to Traefik). Confirm it from the distribution:
 
-   `ignoredPorts=53` stops mirrored mode from sharing port 53 between Windows and the distribution,
-   so the distribution's `systemd-resolved` does not shadow the Windows DNS resolver on
-   `127.0.0.1:53`. Then `wsl --shutdown` and reopen the distribution.
+```bash
+KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n traefik get svc traefik \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; echo
+```
 
-2. Install [Acrylic DNS Proxy](https://mayakron.altervista.org/support/acrylic/Home.htm) and add a
+It is the `172.x` address you chose (for example `172.17.47.200`). Do NOT use `127.0.0.1`: MetalLB
+announces the address on the node interface, so only that IP answers on 80/443. The address stays
+fixed across `wsl --shutdown`, but it must remain inside the WSL2 NAT subnet; if an HNS reset moves
+the subnet, run `set-loadbalancer-ip` with an address in the new range and update the Acrylic entry
+below.
+
+1. Install [Acrylic DNS Proxy](https://mayakron.altervista.org/support/acrylic/Home.htm) and add a
    wildcard entry to its `AcrylicHosts.txt` (it supports wildcards; the Windows hosts file does
-   not):
+   Point it at the fixed Traefik IP found above:
 
    ```text
-   127.0.0.1 *.workstation.internal
+   172.17.47.200 *.workstation.internal
    ```
 
-   Restart the Acrylic service. Then route only the `workstation.internal` suffix to Acrylic with an
-   NRPT rule (PowerShell as administrator), so the rest of your DNS is untouched:
+   Bind Acrylic to the loopback specifically. In `AcrylicConfiguration.ini` set:
+
+   ```ini
+   LocalIPv4BindingAddress=127.0.0.1
+   ```
+
+   This is required: WSL2 NAT relies on the Windows ICS service (`SharedAccess`), which already holds
+   `0.0.0.0:53` on IPv4. Leaving Acrylic on `0.0.0.0` lets it grab only IPv6 UDP 53, so IPv4 queries
+   to `127.0.0.1` (what `nslookup`/NRPT use) hit `SharedAccess` and get no answer. Binding the
+   specific `127.0.0.1` address takes precedence over the ICS wildcard for loopback traffic.
+
+   Restart the Acrylic service (`Restart-Service AcrylicDNSProxySvc -Force`). Then route only the
+   `workstation.internal` suffix to Acrylic (which listens on the Windows loopback) with an NRPT rule
+   (PowerShell as administrator), so the rest of your DNS is untouched:
 
    ```powershell
    Add-DnsClientNrptRule -Namespace ".workstation.internal" -NameServers "127.0.0.1"
    ```
 
-   Every `*.workstation.internal` name now resolves to Traefik with no per-service change. (If you
-   point the whole adapter at `127.0.0.1` instead, make sure Acrylic has upstream resolvers set in
-   `AcrylicConfiguration.ini`, otherwise all other lookups break.)
+   Every `*.workstation.internal` name now resolves to Traefik with no per-service change. Verify:
 
-3. Trust the CA root so certificates validate (PowerShell as administrator). Copy the root from the
+   ```powershell
+   Get-NetUDPEndpoint -LocalPort 53 | Select-Object LocalAddress, OwningProcess  # 127.0.0.1 -> Acrylic
+   nslookup toto.workstation.internal 127.0.0.1                                   # -> the Traefik IP
+   Resolve-DnsName headlamp.workstation.internal                                  # via the NRPT rule
+   ```
+
+2. Trust the CA root so certificates validate (PowerShell as administrator). Copy the root from the
    distribution, for example `\\wsl$\<distro>\home\<you>\.k3s-workstation-platform\ca\root_ca.crt`:
 
    ```powershell

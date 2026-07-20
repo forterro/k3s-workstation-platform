@@ -13,6 +13,7 @@ from workstation_bootstrap.helm import install_args
 def test_install_exec_keeps_flannel_defaults() -> None:
     exec_line = k3s.install_exec()
     assert "--disable=traefik" in exec_line
+    assert "--disable=servicelb" in exec_line
     assert "--flannel-backend=none" not in exec_line
     assert "--disable-kube-proxy" not in exec_line
 

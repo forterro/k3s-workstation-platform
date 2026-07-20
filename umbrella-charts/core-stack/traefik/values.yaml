@@ -5,12 +5,15 @@ dashboardRoute:
   entryPoint: web
   match: "PathPrefix(`/dashboard`) || PathPrefix(`/api`)"
 
-# Values passed to the upstream Traefik subchart. Exposed through the k3s built-in servicelb
-# (klipper), which assigns the WSL2 node IP to the LoadBalancer service. The chart already exposes
+# Values passed to the upstream Traefik subchart. Exposed through MetalLB (L2 mode): the service is
+# annotated with the MetalLB pool name so it always gets the fixed workstation address handed out by
+# the single-address pool the seed applies (config.yaml loadbalancer_ip). The chart already exposes
 # the web (80) and websecure (443, TLS) entry points by default.
 traefik:
   service:
     type: LoadBalancer
+    annotations:
+      metallb.io/address-pool: workstation-pool
   ingressRoute:
     dashboard:
       enabled: false

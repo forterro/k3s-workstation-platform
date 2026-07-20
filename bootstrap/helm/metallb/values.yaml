@@ -1,0 +1,7 @@
+# MetalLB values for the workstation seed. The chart installs its CRDs so the seed can apply the
+# IPAddressPool and L2Advertisement right after. Those two resources are applied imperatively by the
+# bootstrap because the address is machine-specific (config.yaml loadbalancer_ip); MetalLB then hands
+# that single address to the only LoadBalancer service, Traefik.
+metallb:
+  crds:
+    enabled: true

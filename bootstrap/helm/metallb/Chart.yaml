@@ -1,0 +1,10 @@
+apiVersion: v2
+name: metallb-seed
+description: MetalLB load balancer for the k3s workstation seed
+type: application
+version: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://metallb.github.io/metallb
+  - name: metallb
+    repository: https://metallb.github.io/metallb
+    version: 0.16.1

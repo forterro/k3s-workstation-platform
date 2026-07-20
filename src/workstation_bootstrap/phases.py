@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
@@ -20,6 +21,11 @@ _STEP_CA_NAMESPACE = "step-ca"
 _STEP_CA_ISSUER_NAME = "step-ca-acme"
 _STEP_CA_ACME_SERVER = "https://step-ca.step-ca.svc.cluster.local/acme/acme/directory"
 _STEP_CA_INGRESS_CLASS = "traefik"
+
+_METALLB_NAMESPACE = "metallb-system"
+_METALLB_POOL_NAME = "workstation-pool"
+_METALLB_L2_NAME = "workstation-l2"
+_TRAEFIK_NAMESPACE = "traefik"
 
 # Marks resources that are managed imperatively (outside git) so the ArgoCD step-ca application
 # does not treat them as extraneous and prune them.
@@ -34,6 +40,7 @@ class PhaseError(RuntimeError):
 class Context:
     root: Path
     dry_run: bool
+    loadbalancer_ip: str | None = None
 
 
 @dataclass(frozen=True)
@@ -249,6 +256,78 @@ def _phase_argocd(context: Context) -> None:
     _apply_seed_chart(context, brick="argo-cd", namespace="argocd", release="argocd")
 
 
+def _metallb_pool_manifest(ip: str) -> str:
+    """Render the single-address IPAddressPool and its L2Advertisement for MetalLB.
+
+    A single-address pool plus the one LoadBalancer service (Traefik, annotated with the pool name)
+    pins Traefik to a stable, well-known address.
+    """
+    return (
+        "apiVersion: metallb.io/v1beta1\n"
+        "kind: IPAddressPool\n"
+        "metadata:\n"
+        f"  name: {_METALLB_POOL_NAME}\n"
+        f"  namespace: {_METALLB_NAMESPACE}\n"
+        "spec:\n"
+        "  addresses:\n"
+        f"    - {ip}/32\n"
+        "---\n"
+        "apiVersion: metallb.io/v1beta1\n"
+        "kind: L2Advertisement\n"
+        "metadata:\n"
+        f"  name: {_METALLB_L2_NAME}\n"
+        f"  namespace: {_METALLB_NAMESPACE}\n"
+        "spec:\n"
+        "  ipAddressPools:\n"
+        f"    - {_METALLB_POOL_NAME}\n"
+    )
+
+
+def _apply_metallb_pool(ip: str, env: dict[str, str]) -> None:
+    """Apply the pool, retrying while the MetalLB admission webhook is still coming up.
+
+    helm --wait reports the controller Deployment as Available before its validating webhook is
+    reachable, so the first apply often hits a 502 from the API server proxy. Retry until it serves.
+    """
+    manifest = _metallb_pool_manifest(ip)
+    attempts = 30
+    delay = 5
+    for attempt in range(1, attempts + 1):
+        try:
+            _kubectl_apply(manifest, env)
+            return
+        except command.CommandError:
+            if attempt == attempts:
+                raise
+            console.sub(f"MetalLB webhook not ready yet; retrying ({attempt}/{attempts})")
+            time.sleep(delay)
+
+
+def _phase_metallb(context: Context) -> None:
+    """Install MetalLB and pin the LoadBalancer pool to the configured Traefik IP."""
+    _apply_seed_chart(context, brick="metallb", namespace=_METALLB_NAMESPACE, release="metallb")
+    ip = settings.ensure_loadbalancer_ip(context.root, override=context.loadbalancer_ip)
+    _apply_metallb_pool(ip, _kubectl_env())
+    console.ok(f"MetalLB address pool pinned to {ip}")
+
+
+def reconfigure_loadbalancer_ip(context: Context, ip: str) -> None:
+    """Change the Traefik LoadBalancer IP and restart the affected services.
+
+    Persists the new IP, re-applies the MetalLB pool so the address is reassigned, and restarts
+    Traefik so it re-announces on the new address.
+    """
+    new_ip = settings.ensure_loadbalancer_ip(context.root, override=ip)
+    env = _kubectl_env()
+    _apply_metallb_pool(new_ip, env)
+    command.run(
+        ["kubectl", "-n", _TRAEFIK_NAMESPACE, "rollout", "restart", "deployment"],
+        env=env,
+        check=False,
+    )
+    console.ok(f"Traefik LoadBalancer IP updated to {new_ip}")
+
+
 def _phase_root_app(context: Context) -> None:
     chart = context.root / "bootstrap" / "helm" / "root-app"
     if not chart.exists():
@@ -290,6 +369,11 @@ PHASE_PLAN: tuple[Phase, ...] = (
         _phase_step_ca_material,
     ),
     Phase("argocd", "Install ArgoCD with the KSOPS plugin", _phase_argocd),
+    Phase(
+        "metallb",
+        "Install MetalLB and pin the LoadBalancer pool to the configured Traefik IP",
+        _phase_metallb,
+    ),
     Phase("root-app", "Apply the ArgoCD root app-of-apps", _phase_root_app),
 )
 

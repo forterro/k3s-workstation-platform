@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 from . import __version__, console, k3s, preflight
 from .config import find_repo_root
-from .phases import Context, run_bootstrap
+from .phases import Context, reconfigure_loadbalancer_ip, run_bootstrap
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -35,11 +35,22 @@ def _build_parser() -> argparse.ArgumentParser:
     bootstrap_parser.add_argument(
         "--dry-run", action="store_true", help="List the planned phases without applying"
     )
+    bootstrap_parser.add_argument(
+        "--loadbalancer-ip",
+        metavar="IP",
+        help="Fixed Traefik LoadBalancer IP (MetalLB); stored in config.yaml, prompted if unset",
+    )
 
     reset_parser = subparsers.add_parser(
         "reset", help="Completely remove k3s and its cluster (k3s-uninstall)"
     )
     reset_parser.add_argument("--dry-run", action="store_true", help="Show what would be removed")
+
+    set_ip_parser = subparsers.add_parser(
+        "set-loadbalancer-ip",
+        help="Change the Traefik LoadBalancer IP and restart the affected services",
+    )
+    set_ip_parser.add_argument("ip", metavar="IP", help="New Traefik LoadBalancer IP")
     return parser
 
 
@@ -52,13 +63,24 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     if not args.skip_preflight and not preflight.run():
         return 1
 
-    context = Context(root=find_repo_root(), dry_run=args.dry_run)
+    context = Context(
+        root=find_repo_root(),
+        dry_run=args.dry_run,
+        loadbalancer_ip=args.loadbalancer_ip,
+    )
     return 0 if run_bootstrap(context) else 1
 
 
 def _cmd_reset(args: argparse.Namespace) -> int:
     console.banner("k3s workstation reset")
     k3s.uninstall(dry_run=args.dry_run)
+    return 0
+
+
+def _cmd_set_loadbalancer_ip(args: argparse.Namespace) -> int:
+    console.banner("k3s workstation set-loadbalancer-ip")
+    context = Context(root=find_repo_root(), dry_run=False)
+    reconfigure_loadbalancer_ip(context, args.ip)
     return 0
 
 
@@ -72,6 +94,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _cmd_bootstrap(args)
     if args.command == "reset":
         return _cmd_reset(args)
+    if args.command == "set-loadbalancer-ip":
+        return _cmd_set_loadbalancer_ip(args)
 
     parser.print_help()
     return 2
