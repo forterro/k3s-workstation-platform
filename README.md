@@ -108,6 +108,18 @@ Open `https://localhost:8080` and log in as `admin`.
 Once DNS is set up (see below), the UI is also reachable at
 `https://argocd.workstation.internal`.
 
+## Open Grafana
+
+The observability stack ships Grafana with Prometheus as the default datasource. Read the generated
+admin password:
+
+```bash
+kubectl -n observability get secret grafana \
+  -o jsonpath='{.data.admin-password}' | base64 -d; echo
+```
+
+Once DNS is set up (see below), open `https://grafana.workstation.internal` and log in as `admin`.
+
 ## Certificates
 
 - The platform runs its own ACME certificate authority, step-ca. cert-manager issues the certs.
