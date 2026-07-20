@@ -116,6 +116,22 @@ Once DNS is set up (see below), the UI is also reachable at
   `ClusterIssuer`. The step-ca workload consumes them.
 - Rotate the CA with `FORCE=1 make generate-ca`.
 
+## Extra layers
+
+The base platform can hand ArgoCD extra root app-of-apps that live in sibling repositories, so a
+layer built on top (for example an AI stack) reconciles independently without the base code
+referencing it. Declare them under `extra_root_apps` in `~/.k3s-workstation-platform/config.yaml`:
+
+```yaml
+extra_root_apps:
+  - name: ai-platform
+    path: ../ai-workstation-platform/bootstrap/helm/root-app
+```
+
+Each `path` is a Helm chart directory resolved relative to this repository's root (a sibling
+submodule is reachable as `../<repo>/...`). The `extra-root-apps` phase installs each chart into the
+`argocd` namespace after the base root app. The list defaults to empty.
+
 ## Local access
 
 How access works:

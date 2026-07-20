@@ -106,6 +106,16 @@ def ensure_loadbalancer_ip(
     return ip
 
 
+def extra_root_apps(config: dict) -> list[dict]:
+    """Return the optional extra root app-of-apps declared by the consumer.
+
+    Each entry is a mapping with ``name`` (the helm release) and ``path`` (a chart directory,
+    relative to the platform repository root). Defaults to an empty list so the base platform stays
+    decoupled from any layer built on top of it (e.g. an AI stack in a sibling repository).
+    """
+    return list(config.get("extra_root_apps") or [])
+
+
 def render_root_app_values(config: dict) -> Path:
     """Write a values override that points the root app at the configured platform repository."""
     override = {

@@ -354,6 +354,28 @@ def _phase_root_app(context: Context) -> None:
     helm.install(chart, release="root-app", namespace="argocd", values=[values_file])
 
 
+def _phase_extra_root_apps(context: Context) -> None:
+    """Apply optional extra root app-of-apps declared in the consumer config.
+
+    This keeps the base platform decoupled: layers built on top (e.g. an AI stack in a sibling
+    repository) register their own root app-of-apps via ``extra_root_apps`` in the consumer config,
+    without the base code referencing them. Each chart path is resolved relative to the platform
+    repository root, so a sibling submodule is reachable as ``../<repo>/bootstrap/helm/root-app``.
+    """
+    config = settings.load_or_init_config(context.root)
+    for entry in settings.extra_root_apps(config):
+        name = entry.get("name")
+        raw_path = entry.get("path")
+        if not name or not raw_path:
+            raise PhaseError(f"invalid extra_root_apps entry: {entry!r}")
+        chart = (context.root / raw_path).resolve()
+        if not chart.exists():
+            raise PhaseError(f"extra root app chart not found: {chart}")
+        console.sub(f"applying extra root app '{name}' from {chart}")
+        helm.update_dependencies(chart)
+        helm.install(chart, release=name, namespace="argocd")
+
+
 def _apply_seed_chart(
     context: Context,
     *,
@@ -403,6 +425,11 @@ PHASE_PLAN: tuple[Phase, ...] = (
         _phase_metallb,
     ),
     Phase("root-app", "Apply the ArgoCD root app-of-apps", _phase_root_app),
+    Phase(
+        "extra-root-apps",
+        "Apply optional extra root app-of-apps declared in the consumer config",
+        _phase_extra_root_apps,
+    ),
 )
 
 
