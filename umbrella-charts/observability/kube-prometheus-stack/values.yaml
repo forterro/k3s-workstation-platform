@@ -22,6 +22,12 @@ kube-prometheus-stack:
       dashboards:
         enabled: true
         searchNamespace: ALL
+        # Organise dashboards into Grafana folders: each dashboard ConfigMap declares its target
+        # folder through the `grafana_folder` annotation, and the sidecar mirrors that annotation
+        # into the on-disk folder structure the provider imports from.
+        folderAnnotation: grafana_folder
+        provider:
+          foldersFromFilesStructure: true
       datasources:
         enabled: true
         searchNamespace: ALL

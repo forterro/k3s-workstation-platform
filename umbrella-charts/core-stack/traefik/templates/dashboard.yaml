@@ -6,6 +6,9 @@ metadata:
   labels:
     # Picked up automatically by the Grafana dashboard sidecar (searchNamespace: ALL).
     grafana_dashboard: "1"
+  annotations:
+    # Places the dashboard in a dedicated Grafana folder (sidecar folderAnnotation).
+    grafana_folder: "Core Stack"
 data:
   traefik.json: |-
 {{ .Files.Get "dashboards/traefik.json" | indent 4 }}
