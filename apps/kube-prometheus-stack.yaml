@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: node-exporter
+  name: kube-prometheus-stack
   namespace: argocd
 spec:
   project: workstation
   source:
     repoURL: https://github.com/forterro/k3s-workstation-platform.git
     targetRevision: main
-    path: umbrella-charts/observability/node-exporter
+    path: umbrella-charts/observability/kube-prometheus-stack
   destination:
     server: https://kubernetes.default.svc
     namespace: observability

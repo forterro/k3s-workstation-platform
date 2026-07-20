@@ -1,0 +1,63 @@
+# Metrics-only observability for the workstation platform, built on the Prometheus Operator.
+# Components across the platform expose metrics through ServiceMonitor/PodMonitor objects and ship
+# their Grafana dashboards as ConfigMaps (labelled grafana_dashboard=1); both are auto-discovered.
+kube-prometheus-stack:
+  # Alerting is out of scope for the workstation; keep the footprint metrics-only.
+  alertmanager:
+    enabled: false
+
+  grafana:
+    # Stable service name so the umbrella IngressRoute/Certificate can target it.
+    fullnameOverride: grafana
+    service:
+      type: ClusterIP
+    # Admin credentials come from the stable, out-of-git secret published by the seed
+    # (see the grafana-admin-secret bootstrap phase). Persistence stays disabled: dashboards and
+    # datasources are provisioned declaratively, so every restart re-applies the secret password.
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+    sidecar:
+      dashboards:
+        enabled: true
+        searchNamespace: ALL
+      datasources:
+        enabled: true
+        searchNamespace: ALL
+
+  prometheus:
+    prometheusSpec:
+      # Discover ServiceMonitors/PodMonitors/Rules/Probes cluster-wide, not only those carrying this
+      # release's label, so any component can register itself by shipping its own object.
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+      probeSelectorNilUsesHelmValues: false
+      retention: 15d
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi
+
+  # node-exporter cannot mount the host root as a shared mount under WSL2; disable that mount.
+  prometheus-node-exporter:
+    hostRootFsMount:
+      enabled: false
+
+# Expose Grafana through Traefik over TLS, with a certificate issued by step-ca via cert-manager.
+ingressRoute:
+  enabled: true
+  host: grafana.workstation.internal
+  entryPoint: websecure
+  issuer: step-ca-acme
+  service:
+    name: grafana
+    port: 80

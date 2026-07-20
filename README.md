@@ -111,11 +111,14 @@ Once DNS is set up (see below), the UI is also reachable at
 
 ## Open Grafana
 
-The observability stack ships Grafana with Prometheus as the default datasource. The bootstrap
-generates a stable admin password on first run, stores it locally under
+Observability is a metrics-only stack built on the Prometheus Operator (kube-prometheus-stack):
+Prometheus, Grafana and the node/kube-state exporters. Any component registers itself by shipping a
+`ServiceMonitor`/`PodMonitor` (discovered cluster-wide) and its Grafana dashboards as ConfigMaps
+labelled `grafana_dashboard=1` (auto-loaded from any namespace).
+
+The bootstrap generates a stable Grafana admin password on first run, stores it locally under
 `~/.k3s-workstation-platform/grafana/admin-password` (never committed to git) and publishes it as the
-`grafana-admin` secret that Grafana consumes via `admin.existingSecret`. This keeps the password
-stable across reconciles and cluster resets. Read it from either source:
+`grafana-admin` secret that Grafana consumes via `admin.existingSecret`. Read it from either source:
 
 ```bash
 cat ~/.k3s-workstation-platform/grafana/admin-password
