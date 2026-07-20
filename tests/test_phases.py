@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from workstation_bootstrap import phases
@@ -49,6 +51,29 @@ def test_clusterissuer_manifest_embeds_root_ca_bundle(tmp_path):
     assert "ingressClassName: traefik" in manifest
 
 
+def test_normalize_ca_json_rewrites_paths_to_container_layout(tmp_path):
+    ca = tmp_path
+    (ca / "ca.json").write_text(
+        json.dumps(
+            {
+                "root": "/tmp/tmp.abc/certs/root_ca.crt",
+                "crt": "/tmp/tmp.abc/certs/intermediate_ca.crt",
+                "key": "/tmp/tmp.abc/secrets/intermediate_ca_key",
+                "db": {"type": "badgerv2", "dataSource": "/tmp/tmp.abc/db"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    phases._normalize_ca_json(ca)
+
+    data = json.loads((ca / "ca.json").read_text(encoding="utf-8"))
+    assert data["root"] == "/home/step/certs/root_ca.crt"
+    assert data["crt"] == "/home/step/certs/intermediate_ca.crt"
+    assert data["key"] == "/home/step/secrets/intermediate_ca_key"
+    assert data["db"]["dataSource"] == "/home/step/db"
+
+
 def test_ensure_local_ca_skips_when_present(monkeypatch, tmp_path):
     ca = tmp_path / "ca"
     ca.mkdir()
@@ -69,12 +94,12 @@ def test_phase_step_ca_material_applies_all_resources(monkeypatch, tmp_path):
     for name in (
         "root_ca.crt",
         "intermediate_ca.crt",
-        "ca.json",
         "root_ca_key",
         "intermediate_ca_key",
         "ca.pass",
     ):
         (ca / name).write_text(name, encoding="utf-8")
+    (ca / "ca.json").write_text(json.dumps({"db": {"dataSource": "/tmp/x/db"}}), encoding="utf-8")
     monkeypatch.setattr(phases.settings, "ca_dir", lambda: ca)
 
     calls: list[list[str]] = []

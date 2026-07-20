@@ -7,6 +7,7 @@ depends on the previous one.
 from __future__ import annotations
 
 import base64
+import json
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -155,9 +156,27 @@ def _clusterissuer_manifest(ca: Path) -> str:
     )
 
 
+def _normalize_ca_json(ca: Path) -> None:
+    """Force ca.json paths to the step-ca container layout (idempotent; self-heals older CAs).
+
+    step ca init writes absolute paths based on the temporary STEPPATH used at generation time; the
+    step-ca container expects them under /home/step where the ConfigMaps, Secrets and PVC mount.
+    """
+    path = ca / "ca.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["root"] = "/home/step/certs/root_ca.crt"
+    data["crt"] = "/home/step/certs/intermediate_ca.crt"
+    data["key"] = "/home/step/secrets/intermediate_ca_key"
+    db = data.get("db")
+    if isinstance(db, dict) and db.get("dataSource"):
+        db["dataSource"] = "/home/step/db"
+    path.write_text(json.dumps(data, indent=3) + "\n", encoding="utf-8")
+
+
 def _phase_step_ca_material(context: Context) -> None:
     """Generate (if absent) and apply the local CA material and the ACME ClusterIssuer."""
     ca = _ensure_local_ca(context)
+    _normalize_ca_json(ca)
     env = _kubectl_env()
     ignore = [_ARGOCD_IGNORE]
     _apply_namespace(_STEP_CA_NAMESPACE, env, annotations=ignore)
