@@ -6,6 +6,10 @@ dashboardRoute:
   entryPoint: websecure
   issuer: step-ca-acme
 
+# Ship the Traefik Grafana dashboard as a ConfigMap auto-discovered by the Grafana sidecar.
+dashboards:
+  enabled: true
+
 # Values passed to the upstream Traefik subchart. Exposed through MetalLB (L2 mode): the service is
 # annotated with the MetalLB pool name so it always gets the fixed workstation address handed out by
 # the single-address pool the seed applies (config.yaml loadbalancer_ip). The chart already exposes
@@ -18,3 +22,12 @@ traefik:
   ingressRoute:
     dashboard:
       enabled: false
+  # Expose Prometheus metrics (enabled by default on the internal "metrics" entrypoint) and let the
+  # Prometheus Operator scrape them via a ServiceMonitor. Entry-point and service labels feed the
+  # standard Traefik Grafana dashboard.
+  metrics:
+    prometheus:
+      addEntryPointsLabels: true
+      addServicesLabels: true
+      serviceMonitor:
+        enabled: true
