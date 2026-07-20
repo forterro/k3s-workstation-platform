@@ -107,9 +107,12 @@ CA root. This is a Windows-side, one-time setup; nothing runs in the cluster for
    ```ini
    [wsl2]
    networkingMode=mirrored
+   ignoredPorts=53
    ```
 
-   Then `wsl --shutdown` and reopen the distribution.
+   `ignoredPorts=53` stops mirrored mode from sharing port 53 between Windows and the distribution,
+   so the distribution's `systemd-resolved` does not shadow the Windows DNS resolver on
+   `127.0.0.1:53`. Then `wsl --shutdown` and reopen the distribution.
 
 2. Install [Acrylic DNS Proxy](https://mayakron.altervista.org/support/acrylic/Home.htm) and add a
    wildcard entry to its `AcrylicHosts.txt` (it supports wildcards; the Windows hosts file does
