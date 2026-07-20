@@ -19,6 +19,21 @@ def update_dependencies(chart_dir: Path) -> None:
         command.run(["helm", "dependency", "update", str(chart_dir)])
 
 
+def release_exists(release: str, namespace: str, *, kubeconfig: Path = KUBECONFIG) -> bool:
+    """Return True if a Helm release with this name already exists in the namespace.
+
+    Used to make the seed install-once: once a brick is seeded and ArgoCD adopts its resources, a
+    second `helm upgrade` would fight ArgoCD's field manager, so the phase skips it instead.
+    """
+    result = command.run(
+        ["helm", "status", release, "--namespace", namespace, "--kubeconfig", str(kubeconfig)],
+        check=False,
+        capture=True,
+    )
+    return result.returncode == 0
+
+
+
 def install_args(
     chart_dir: Path,
     release: str,

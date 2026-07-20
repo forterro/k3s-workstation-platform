@@ -145,6 +145,7 @@ def test_phase_metallb_installs_chart_and_applies_pool(monkeypatch, tmp_path):
 
     installed: list[dict] = []
     monkeypatch.setattr(phases.helm, "update_dependencies", lambda c: None)
+    monkeypatch.setattr(phases.helm, "release_exists", lambda release, namespace: False)
     monkeypatch.setattr(
         phases.helm,
         "install",
@@ -173,6 +174,26 @@ def test_phase_metallb_installs_chart_and_applies_pool(monkeypatch, tmp_path):
 
     assert installed == [{"release": "metallb", "namespace": "metallb-system"}]
     assert any("kind: IPAddressPool" in m and "172.17.47.200/32" in m for m in applied)
+
+
+def test_apply_seed_chart_skips_when_release_exists(monkeypatch, tmp_path):
+    chart = tmp_path / "umbrella-charts" / "core-stack" / "cert-manager"
+    chart.mkdir(parents=True)
+
+    installed: list[dict] = []
+    monkeypatch.setattr(phases.helm, "update_dependencies", lambda c: None)
+    monkeypatch.setattr(phases.helm, "release_exists", lambda release, namespace: True)
+    monkeypatch.setattr(phases.helm, "install", lambda *a, **k: installed.append(k))
+
+    phases._apply_seed_chart(
+        phases.Context(root=tmp_path, dry_run=False),
+        group="core-stack",
+        brick="cert-manager",
+        namespace="cert-manager",
+        release="cert-manager",
+    )
+
+    assert installed == []
 
 
 def test_reconfigure_loadbalancer_ip_reapplies_and_restarts(monkeypatch, tmp_path):

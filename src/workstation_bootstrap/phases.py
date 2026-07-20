@@ -348,6 +348,9 @@ def _phase_root_app(context: Context) -> None:
     chart = context.root / "bootstrap" / "helm" / "root-app"
     if not chart.exists():
         raise PhaseError(f"seed chart not found: {chart}")
+    if helm.release_exists("root-app", "argocd"):
+        console.sub("root-app already seeded; ArgoCD owns it now \u2014 skipping")
+        return
     config = settings.load_or_init_config(context.root)
     values_file = settings.render_root_app_values(config)
     helm.update_dependencies(chart)
@@ -371,6 +374,9 @@ def _phase_extra_root_apps(context: Context) -> None:
         chart = (context.root / raw_path).resolve()
         if not chart.exists():
             raise PhaseError(f"extra root app chart not found: {chart}")
+        if helm.release_exists(name, "argocd"):
+            console.sub(f"extra root app '{name}' already seeded \u2014 skipping")
+            continue
         console.sub(f"applying extra root app '{name}' from {chart}")
         helm.update_dependencies(chart)
         helm.install(chart, release=name, namespace="argocd")
@@ -390,6 +396,9 @@ def _apply_seed_chart(
     chart = context.root / "umbrella-charts" / group / brick
     if not chart.exists():
         raise PhaseError(f"seed chart not found: {chart}")
+    if helm.release_exists(release, namespace):
+        console.sub(f"{release} already seeded; ArgoCD owns it now \u2014 skipping")
+        return
     helm.update_dependencies(chart)
     helm.install(
         chart,
