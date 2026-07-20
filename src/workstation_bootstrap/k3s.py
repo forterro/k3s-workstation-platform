@@ -69,6 +69,13 @@ def ensure_k3s(dry_run: bool = False) -> None:
     console.ok("k3s installed and API ready")
 
 
+def restart() -> None:
+    """Restart the k3s service and wait for its API to become ready again."""
+    command.run(_sudo(["systemctl", "restart", "k3s"]))
+    _wait_api()
+
+
+
 _STALE_CNI_INTERFACES = ("cni0", "flannel.1", "cilium_host", "cilium_net", "cilium_vxlan")
 
 

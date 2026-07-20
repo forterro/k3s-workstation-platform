@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from . import command, console, helm, k3s, settings, tools
+from . import command, console, gpu, helm, k3s, settings, tools
 
 _STEP_CA_NAMESPACE = "step-ca"
 _STEP_CA_ISSUER_NAME = "step-ca-acme"
@@ -60,6 +60,10 @@ def _seed_values(root: Path, brick: str) -> list[Path]:
 
 def _phase_k3s(context: Context) -> None:
     k3s.ensure_k3s(dry_run=context.dry_run)
+
+
+def _phase_gpu_runtime(context: Context) -> None:
+    gpu.ensure_nvidia_runtime(dry_run=context.dry_run)
 
 
 def _kubectl_env() -> dict[str, str]:
@@ -444,6 +448,11 @@ def _apply_seed_chart(
 
 PHASE_PLAN: tuple[Phase, ...] = (
     Phase("k3s", "Install and start k3s (flannel CNI, standard NetworkPolicy)", _phase_k3s),
+    Phase(
+        "gpu-runtime",
+        "Enable the NVIDIA GPU runtime for k3s when a GPU is present",
+        _phase_gpu_runtime,
+    ),
     Phase(
         "cert-manager",
         "Apply cert-manager with its CRDs",

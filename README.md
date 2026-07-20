@@ -71,12 +71,14 @@ First it prepares the host:
 Then it runs the seed phases in order:
 
 1. Installs and starts k3s. Traefik and the built-in servicelb are disabled.
-2. Installs cert-manager.
-3. Generates the local CA on first run and applies its ACME `ClusterIssuer`.
-4. Installs ArgoCD (with the KSOPS secrets plugin).
-5. Installs MetalLB and pins the Traefik LoadBalancer IP.
-6. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
-7. Installs the ArgoCD root app-of-apps.
+2. Enables the NVIDIA GPU runtime for k3s when a GPU is present (installs the NVIDIA Container
+   Toolkit and restarts k3s so containerd exposes the `nvidia` runtime). A no-op without a GPU.
+3. Installs cert-manager.
+4. Generates the local CA on first run and applies its ACME `ClusterIssuer`.
+5. Installs ArgoCD (with the KSOPS secrets plugin).
+6. Installs MetalLB and pins the Traefik LoadBalancer IP.
+7. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
+8. Installs the ArgoCD root app-of-apps.
 
 From there, ArgoCD tracks the git repository set in `rootApp` (see
 [bootstrap/helm/root-app/values.yaml](bootstrap/helm/root-app/values.yaml)) and reconciles the child
