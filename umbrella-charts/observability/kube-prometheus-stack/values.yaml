@@ -28,6 +28,11 @@ kube-prometheus-stack:
         folderAnnotation: grafana_folder
         provider:
           foldersFromFilesStructure: true
+        # Annotation stamped on the chart's own bundled dashboards (Kubernetes, node-exporter,
+        # Prometheus, etcd, CoreDNS...), grouping them under a single "Kubernetes" folder instead
+        # of the default General folder.
+        annotations:
+          grafana_folder: "Kubernetes"
       datasources:
         enabled: true
         searchNamespace: ALL
