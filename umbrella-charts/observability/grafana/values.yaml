@@ -4,9 +4,23 @@ grafana:
   service:
     type: ClusterIP
 
+  # Admin credentials come from a stable, out-of-git secret so ArgoCD does not
+  # regenerate a random password on every reconcile. Create it once with:
+  #   kubectl -n observability create secret generic grafana-admin \
+  #     --from-literal=admin-user=admin --from-literal=admin-password=<password>
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+
   persistence:
     enabled: true
     size: 2Gi
+
+  # local-path (WSL2) rejects the root chown init container; fsGroup already
+  # fixes volume ownership for the grafana user.
+  initChownData:
+    enabled: false
 
   # Prometheus (the workstation metrics store) provisioned as the default datasource.
   datasources:
