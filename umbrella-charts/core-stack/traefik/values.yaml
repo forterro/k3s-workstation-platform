@@ -19,6 +19,17 @@ traefik:
     type: LoadBalancer
     annotations:
       metallb.io/address-pool: workstation-pool
+  # Global HTTP-to-HTTPS redirect: every request on the web (80) entry point is
+  # 308-redirected to websecure (443). Bricks only declare a websecure IngressRoute,
+  # so without this a plain http:// request (what browsers try first) returns 404.
+  ports:
+    web:
+      http:
+        redirections:
+          entryPoint:
+            to: websecure
+            scheme: https
+            permanent: true
   ingressRoute:
     dashboard:
       enabled: false
