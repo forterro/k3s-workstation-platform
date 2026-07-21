@@ -39,6 +39,7 @@ _HOST_DNS_CONF = Path("/etc/dnsmasq.d/workstation-internal.conf")
 _HOST_DNS_UNIT = Path("/etc/systemd/system/workstation-internal-dns.service")
 _RESOLVED_DROPIN = Path("/etc/systemd/resolved.conf.d/workstation-internal.conf")
 _NSSWITCH_PATH = Path("/etc/nsswitch.conf")
+_HOST_CA_CERT = Path("/usr/local/share/ca-certificates/workstation-root-ca.crt")
 
 _OBSERVABILITY_NAMESPACE = "observability"
 _GRAFANA_ADMIN_SECRET = "grafana-admin"
@@ -200,10 +201,33 @@ def _normalize_ca_json(ca: Path) -> None:
     path.write_text(json.dumps(data, indent=3) + "\n", encoding="utf-8")
 
 
+def _trust_ca_on_host(ca: Path) -> None:
+    """Install the workstation root CA into the host trust store.
+
+    Lets host clients (curl, VS Code extensions, the local coding agent) reach
+    ``*.workstation.internal`` over HTTPS without passing the CA explicitly. Idempotent: only reruns
+    update-ca-certificates when the installed copy is missing or stale.
+    """
+    source = ca / "root_ca.crt"
+    if not source.exists():
+        return
+    desired = source.read_text(encoding="ascii")
+    try:
+        if _HOST_CA_CERT.read_text(encoding="ascii") == desired:
+            console.ok("workstation root CA already trusted by the host")
+            return
+    except OSError:
+        pass
+    _sudo_write(_HOST_CA_CERT, desired)
+    command.run(_sudo(["update-ca-certificates"]))
+    console.ok("workstation root CA installed into the host trust store")
+
+
 def _phase_step_ca_material(context: Context) -> None:
     """Generate (if absent) and apply the local CA material and the ACME ClusterIssuer."""
     ca = _ensure_local_ca(context)
     _normalize_ca_json(ca)
+    _trust_ca_on_host(ca)
     env = _kubectl_env()
     ignore = [_ARGOCD_IGNORE]
     _apply_namespace(_STEP_CA_NAMESPACE, env, annotations=ignore)

@@ -310,3 +310,48 @@ def test_apply_host_dns_dry_run_is_noop(monkeypatch):
 
     phases._apply_host_dns("172.17.47.200", dry_run=True)
 
+
+def test_trust_ca_on_host_installs_when_absent(monkeypatch, tmp_path):
+    ca = tmp_path / "ca"
+    ca.mkdir()
+    (ca / "root_ca.crt").write_text("PEM", encoding="ascii")
+    target = tmp_path / "missing" / "workstation-root-ca.crt"
+    monkeypatch.setattr(phases, "_HOST_CA_CERT", target)
+
+    calls: list[list[str]] = []
+    writes: dict[str, str] = {}
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if "tee" in cmd:
+            writes[cmd[-1]] = kwargs.get("input_text", "")
+
+        class _Result:
+            stdout = ""
+
+        return _Result()
+
+    monkeypatch.setattr(phases.command, "run", fake_run)
+
+    phases._trust_ca_on_host(ca)
+
+    joined = [" ".join(c) for c in calls]
+    assert any("update-ca-certificates" in c for c in joined)
+    assert writes[str(target)] == "PEM"
+
+
+def test_trust_ca_on_host_skips_when_current(monkeypatch, tmp_path):
+    ca = tmp_path / "ca"
+    ca.mkdir()
+    (ca / "root_ca.crt").write_text("PEM", encoding="ascii")
+    installed = tmp_path / "workstation-root-ca.crt"
+    installed.write_text("PEM", encoding="ascii")
+    monkeypatch.setattr(phases, "_HOST_CA_CERT", installed)
+
+    def fail_run(*a, **k):
+        raise AssertionError("update-ca-certificates should not run when the CA is current")
+
+    monkeypatch.setattr(phases.command, "run", fail_run)
+
+    phases._trust_ca_on_host(ca)
+

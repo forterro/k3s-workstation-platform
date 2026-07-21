@@ -140,6 +140,9 @@ Once DNS is set up (see below), open `https://grafana.workstation.internal` and 
 - The CA material lives under `~/.k3s-workstation-platform/ca`. It is never committed to git.
 - The bootstrap generates it on first run, then applies the CA ConfigMaps, Secrets and the ACME
   `ClusterIssuer`. The step-ca workload consumes them.
+- The bootstrap also installs the root CA into the host trust store
+  (`/usr/local/share/ca-certificates`), so host clients validate `*.workstation.internal` certs
+  without extra flags.
 - Rotate the CA with `FORCE=1 make generate-ca`.
 
 ## Extra layers
