@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import shutil
 import time
 import urllib.parse
 from collections.abc import Callable
@@ -27,6 +28,17 @@ _METALLB_NAMESPACE = "metallb-system"
 _METALLB_POOL_NAME = "workstation-pool"
 _METALLB_L2_NAME = "workstation-l2"
 _TRAEFIK_NAMESPACE = "traefik"
+
+# Host-side split DNS for the *.workstation.internal zone (the WSL mirror of the Windows
+# Acrylic + NRPT setup). A local dnsmasq answers the wildcard zone; systemd-resolved routes
+# only that zone to it and keeps forwarding everything else to the host upstream.
+_WORKSTATION_DOMAIN = "workstation.internal"
+_HOST_DNS_PORT = 5353
+_HOST_DNS_SERVICE = "workstation-internal-dns"
+_HOST_DNS_CONF = Path("/etc/dnsmasq.d/workstation-internal.conf")
+_HOST_DNS_UNIT = Path("/etc/systemd/system/workstation-internal-dns.service")
+_RESOLVED_DROPIN = Path("/etc/systemd/resolved.conf.d/workstation-internal.conf")
+_NSSWITCH_PATH = Path("/etc/nsswitch.conf")
 
 _OBSERVABILITY_NAMESPACE = "observability"
 _GRAFANA_ADMIN_SECRET = "grafana-admin"
@@ -350,6 +362,134 @@ def reconfigure_loadbalancer_ip(context: Context, ip: str) -> None:
         check=False,
     )
     console.ok(f"Traefik LoadBalancer IP updated to {new_ip}")
+    _apply_host_dns(new_ip, dry_run=context.dry_run)
+
+
+def _sudo(cmd: list[str]) -> list[str]:
+    return cmd if os.geteuid() == 0 else ["sudo", *cmd]
+
+
+def _sudo_write(path: Path, content: str) -> None:
+    """Write a file owned by root via sudo, creating the parent directory if needed."""
+    command.run(_sudo(["mkdir", "-p", str(path.parent)]))
+    command.run(_sudo(["tee", str(path)]), input_text=content, capture=True)
+
+
+def _host_upstream_dns() -> list[str]:
+    """Return the host upstream nameservers from resolv.conf, excluding loopback.
+
+    dnsmasq forwards everything outside the workstation.internal zone to these, so general DNS keeps
+    working. Loopback servers are dropped so we never forward back into our own resolver.
+    """
+    servers: list[str] = []
+    try:
+        text = Path("/etc/resolv.conf").read_text(encoding="utf-8")
+    except OSError:
+        return servers
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == "nameserver" and not parts[1].startswith("127."):
+            servers.append(parts[1])
+    return servers
+
+
+def _host_dns_conf(ip: str, upstreams: list[str]) -> str:
+    lines = [
+        f"# Wildcard responder for *.{_WORKSTATION_DOMAIN} plus a plain forwarder.",
+        "# systemd-resolved sends every query here (see the resolved drop-in); this answers the",
+        "# zone locally and forwards the rest to the host upstream, so general DNS keeps working",
+        "# and nothing here depends on the cluster. Managed by k3s-workstation-bootstrap.",
+        f"port={_HOST_DNS_PORT}",
+        "listen-address=127.0.0.1",
+        "bind-interfaces",
+        "no-hosts",
+        f"address=/{_WORKSTATION_DOMAIN}/{ip}",
+    ]
+    if upstreams:
+        lines.append("no-resolv")
+        lines.extend(f"server={upstream}" for upstream in upstreams)
+    return "\n".join(lines) + "\n"
+
+
+def _host_dns_unit() -> str:
+    return (
+        "[Unit]\n"
+        f"Description=Wildcard DNS for *.{_WORKSTATION_DOMAIN} (workstation platform)\n"
+        "After=network.target\n"
+        "\n"
+        "[Service]\n"
+        f"ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file={_HOST_DNS_CONF}\n"
+        "Restart=on-failure\n"
+        "\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+    )
+
+
+def _resolved_dropin() -> str:
+    return (
+        "# Route all DNS through the local dnsmasq forwarder: it answers the workstation.internal\n"
+        "# zone and forwards everything else upstream. Managed by k3s-workstation-bootstrap.\n"
+        "[Resolve]\n"
+        f"DNS=127.0.0.1:{_HOST_DNS_PORT}\n"
+    )
+
+
+def _ensure_nss_resolve() -> None:
+    """Put systemd-resolved in the glibc lookup path so the zone routing takes effect.
+
+    WSL leaves nsswitch as ``hosts: files dns`` and points resolv.conf straight at the host
+    upstream, so resolved is bypassed. Switching to ``resolve [!UNAVAIL=return]`` makes glibc ask
+    resolved first (which owns the zone route) and only falls back to plain ``dns`` if resolved is
+    down, so general resolution keeps working either way.
+    """
+    try:
+        current = _NSSWITCH_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return
+    lines = current.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("hosts:"):
+            if "resolve" in line:
+                return
+            lines[index] = "hosts:          files resolve [!UNAVAIL=return] dns"
+            _sudo_write(_NSSWITCH_PATH, "\n".join(lines) + "\n")
+            console.sub("nsswitch hosts set to query systemd-resolved")
+            return
+
+
+def _apply_host_dns(ip: str, *, dry_run: bool) -> None:
+    """Make the host resolve *.workstation.internal to the Traefik LoadBalancer IP.
+
+    Installs a local dnsmasq that answers the wildcard zone, runs it under a dedicated systemd
+    unit on 127.0.0.1:5353, and scopes systemd-resolved to forward only that zone to it. Idempotent
+    and reversible; safe to re-run on IP changes.
+    """
+    if dry_run:
+        console.sub(f"[dry-run] would resolve *.{_WORKSTATION_DOMAIN} to {ip} via local dnsmasq")
+        return
+    if shutil.which("dnsmasq") is None:
+        console.sub("installing dnsmasq and libnss-resolve")
+        command.run(_sudo(["apt-get", "install", "-y", "dnsmasq", "libnss-resolve"]))
+        # The packaged service binds :53 and would clash with the resolved stub; we run our own
+        # scoped instance on :5353 instead, so disable the default one.
+        command.run(_sudo(["systemctl", "disable", "--now", "dnsmasq"]), check=False)
+    _sudo_write(_HOST_DNS_CONF, _host_dns_conf(ip, _host_upstream_dns()))
+    _sudo_write(_HOST_DNS_UNIT, _host_dns_unit())
+    command.run(_sudo(["systemctl", "daemon-reload"]))
+    command.run(_sudo(["systemctl", "enable", _HOST_DNS_SERVICE]))
+    command.run(_sudo(["systemctl", "restart", _HOST_DNS_SERVICE]))
+    _ensure_nss_resolve()
+    _sudo_write(_RESOLVED_DROPIN, _resolved_dropin())
+    command.run(_sudo(["systemctl", "restart", "systemd-resolved"]), check=False)
+    console.ok(f"Host resolves *.{_WORKSTATION_DOMAIN} to {ip}")
+
+
+def _phase_host_dns(context: Context) -> None:
+    """Resolve *.workstation.internal from the host (WSL) via a local wildcard DNS."""
+    ip = settings.ensure_loadbalancer_ip(context.root, override=context.loadbalancer_ip)
+    _apply_host_dns(ip, dry_run=context.dry_run)
+
 
 
 def _phase_grafana_admin_secret(context: Context) -> None:
@@ -613,6 +753,11 @@ PHASE_PLAN: tuple[Phase, ...] = (
         "metallb",
         "Install MetalLB and pin the LoadBalancer pool to the configured Traefik IP",
         _phase_metallb,
+    ),
+    Phase(
+        "host-dns",
+        "Resolve *.workstation.internal from the host via a local wildcard DNS (dnsmasq)",
+        _phase_host_dns,
     ),
     Phase(
         "grafana-admin-secret",

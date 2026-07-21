@@ -77,8 +77,10 @@ Then it runs the seed phases in order:
 4. Generates the local CA on first run and applies its ACME `ClusterIssuer`.
 5. Installs ArgoCD (with the KSOPS secrets plugin).
 6. Installs MetalLB and pins the Traefik LoadBalancer IP.
-7. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
-8. Installs the ArgoCD root app-of-apps (`0-root-k3s-workstation`).
+7. Configures host-side split DNS so `*.workstation.internal` resolves from the host (installs a
+   local dnsmasq forwarder and points systemd-resolved at it). See Local access below.
+8. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
+9. Installs the ArgoCD root app-of-apps (`0-root-k3s-workstation`).
 
 From there, ArgoCD tracks the git repository set in `rootApp` (see
 [bootstrap/helm/root-app/values.yaml](bootstrap/helm/root-app/values.yaml)) and reconciles the child
@@ -180,6 +182,8 @@ How access works:
 - The IP is stored as `loadbalancer_ip` in `~/.k3s-workstation-platform/config.yaml`.
 - In-cluster, CoreDNS already resolves the domain to Traefik (this covers the ACME http-01
   challenge).
+- On the host (WSL), the bootstrap resolves the domain automatically via a local dnsmasq forwarder
+  (see below). Reaching it from Windows is a separate, manual one-time setup.
 
 ### Set the LoadBalancer IP
 
@@ -196,6 +200,26 @@ uv run k3s-workstation-bootstrap bootstrap --loadbalancer-ip 172.17.47.200
 uv run k3s-workstation-bootstrap set-loadbalancer-ip 172.17.47.200
 ```
 
+### Reach it from WSL
+
+The bootstrap sets this up automatically; there are no manual steps. The `host-dns` phase:
+
+- installs a local dnsmasq that answers `*.workstation.internal` with the Traefik LoadBalancer IP
+  and forwards every other query to the host upstream DNS, so general resolution is unaffected and
+  nothing depends on the cluster;
+- runs it under the `workstation-internal-dns` systemd service on `127.0.0.1:5353`;
+- points systemd-resolved at it and switches the `nsswitch` `hosts` line to `resolve`, so glibc
+  clients use it. WSL keeps managing `/etc/resolv.conf`.
+
+Verify from WSL:
+
+```bash
+getent hosts headlamp.workstation.internal        # -> the Traefik IP
+curl --cacert ~/.k3s-workstation-platform/ca/root_ca.crt https://headlamp.workstation.internal
+```
+
+`set-loadbalancer-ip` updates the dnsmasq record too, so run it after an HNS reset moves the subnet.
+
 ### Reach it from Windows
 
 One-time, Windows-side setup. Nothing runs in the cluster for it.
@@ -203,66 +227,66 @@ One-time, Windows-side setup. Nothing runs in the cluster for it.
 - Keep the default WSL2 NAT networking. Do not enable mirrored mode.
 - In NAT the MetalLB address is reachable from Windows, with no shared port 53 to fight over.
 
-**1. Find the Traefik IP**
+- Find the Traefik IP
 
-- It equals the `loadbalancer_ip` you configured.
-- Do not use `127.0.0.1`. MetalLB announces the address on the node interface, so only that IP
-  answers on 80/443.
-- The IP survives `wsl --shutdown`, but must stay in the WSL2 NAT subnet. After an HNS reset, run
-  `set-loadbalancer-ip` with a new address and update Acrylic.
+  - It equals the `loadbalancer_ip` you configured.
+  - Do not use `127.0.0.1`. MetalLB announces the address on the node interface, so only that IP
+    answers on 80/443.
+  - The IP survives `wsl --shutdown`, but must stay in the WSL2 NAT subnet. After an HNS reset, run
+    `set-loadbalancer-ip` with a new address and update Acrylic.
 
-```bash
-KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n traefik get svc traefik \
-  -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; echo
-```
+  ```bash
+  KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n traefik get svc traefik \
+    -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; echo
+  ```
 
-**2. Point Acrylic DNS at it**
+- Point Acrylic DNS at it
 
-- Install [Acrylic DNS Proxy](https://mayakron.altervista.org/support/acrylic/Home.htm). It supports
-  wildcards; the Windows hosts file does not.
-- Add a wildcard entry to `AcrylicHosts.txt`:
+  - Install [Acrylic DNS Proxy](https://mayakron.altervista.org/support/acrylic/Home.htm). It supports
+    wildcards; the Windows hosts file does not.
+  - Add a wildcard entry to `AcrylicHosts.txt`:
 
   ```text
   172.17.47.200 *.workstation.internal
   ```
 
-- Bind Acrylic to the loopback in `AcrylicConfiguration.ini`:
+  - Bind Acrylic to the loopback in `AcrylicConfiguration.ini`:
 
-  ```ini
-  LocalIPv4BindingAddress=127.0.0.1
-  ```
+    ```ini
+    LocalIPv4BindingAddress=127.0.0.1
+    ```
 
-- This binding is required. WSL2 NAT uses the Windows ICS service (`SharedAccess`), which already
-  holds `0.0.0.0:53` on IPv4. On `0.0.0.0`, Acrylic wins only IPv6 UDP 53, so IPv4 queries to
-  `127.0.0.1` hit ICS and get no answer. Binding `127.0.0.1` specifically wins loopback traffic.
-- Restart the service: `Restart-Service AcrylicDNSProxySvc -Force`.
+  - This binding is required. WSL2 NAT uses the Windows ICS service (`SharedAccess`), which already
+    holds `0.0.0.0:53` on IPv4. On `0.0.0.0`, Acrylic wins only IPv6 UDP 53, so IPv4 queries to
+    `127.0.0.1` hit ICS and get no answer. Binding `127.0.0.1` specifically wins loopback traffic.
+  - Restart the service: `Restart-Service AcrylicDNSProxySvc -Force`.
 
-**3. Route the suffix to Acrylic**
+- Route the suffix to Acrylic
 
-- Add an NRPT rule (PowerShell as administrator). The rest of your DNS is untouched:
+  - Add an NRPT rule (PowerShell as administrator). The rest of your DNS is untouched:
 
-  ```powershell
-  Add-DnsClientNrptRule -Namespace ".workstation.internal" -NameServers "127.0.0.1"
-  ```
+    ```powershell
+    Add-DnsClientNrptRule -Namespace ".workstation.internal" -NameServers "127.0.0.1"
+    ```
 
-- Verify:
+  - Verify:
 
-  ```powershell
-  Get-NetUDPEndpoint -LocalPort 53 | Select-Object LocalAddress, OwningProcess  # 127.0.0.1 -> Acrylic
-  nslookup toto.workstation.internal 127.0.0.1                                   # -> the Traefik IP
-  Resolve-DnsName headlamp.workstation.internal                                  # via the NRPT rule
-  ```
+    ```powershell
+    Get-NetUDPEndpoint -LocalPort 53 | Select-Object LocalAddress, OwningProcess  # 127.0.0.1 -> Acrylic
+    nslookup toto.workstation.internal 127.0.0.1                                   # -> the Traefik IP
+    Resolve-DnsName headlamp.workstation.internal                                  # via the NRPT rule
+    ```
 
-**4. Trust the CA root**
+- Trust the CA root
 
-- Needed so certificates validate (PowerShell as administrator).
-- Copy the root from `\\wsl$\<distro>\home\<you>\.k3s-workstation-platform\ca\root_ca.crt`, then:
+  - Needed so certificates validate (PowerShell as administrator).
+  - Copy the root from `\\wsl$\<distro>\home\<you>\.k3s-workstation-platform\ca\root_ca.crt`, then:
 
-  ```powershell
-  Import-Certificate -FilePath root_ca.crt -CertStoreLocation Cert:\LocalMachine\Root
-  ```
+    ```powershell
+    Import-Certificate -FilePath root_ca.crt -CertStoreLocation Cert:\LocalMachine\Root
+    ```
 
-Once the Headlamp certificate is issued, open `https://headlamp.workstation.internal` from Windows.
+  Once the Headlamp certificate is issued, open `https://headlamp.workstation.internal` from Windows.
 
 ## Reset the cluster
 

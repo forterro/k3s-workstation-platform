@@ -245,3 +245,68 @@ def test_reconfigure_loadbalancer_ip_reapplies_and_restarts(monkeypatch, tmp_pat
     joined = [" ".join(c) for c in calls]
     assert any("kubectl apply -f -" in c for c in joined)
     assert any("kubectl -n traefik rollout restart deployment" in c for c in joined)
+
+
+def test_host_dns_conf_answers_wildcard_zone():
+    conf = phases._host_dns_conf("172.17.47.200", ["10.255.255.254"])
+
+    assert "port=5353" in conf
+    assert "listen-address=127.0.0.1" in conf
+    assert "no-resolv" in conf
+    assert "server=10.255.255.254" in conf
+    assert "address=/workstation.internal/172.17.47.200" in conf
+
+
+def test_host_dns_conf_without_upstream_omits_no_resolv():
+    conf = phases._host_dns_conf("172.17.47.200", [])
+
+    assert "no-resolv" not in conf
+    assert "server=" not in conf
+    assert "address=/workstation.internal/172.17.47.200" in conf
+
+
+def test_resolved_dropin_routes_all_to_forwarder():
+    dropin = phases._resolved_dropin()
+
+    assert "DNS=127.0.0.1:5353" in dropin
+    assert "Domains" not in dropin
+
+
+def test_apply_host_dns_installs_and_writes(monkeypatch):
+    monkeypatch.setattr(phases.shutil, "which", lambda name: None)
+    monkeypatch.setattr(phases, "_ensure_nss_resolve", lambda: None)
+    monkeypatch.setattr(phases, "_host_upstream_dns", lambda: ["10.255.255.254"])
+
+    calls: list[list[str]] = []
+    writes: dict[str, str] = {}
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if "tee" in cmd:
+            writes[cmd[-1]] = kwargs.get("input_text", "")
+
+        class _Result:
+            stdout = ""
+
+        return _Result()
+
+    monkeypatch.setattr(phases.command, "run", fake_run)
+
+    phases._apply_host_dns("172.17.47.200", dry_run=False)
+
+    joined = [" ".join(c) for c in calls]
+    assert any("apt-get install -y dnsmasq libnss-resolve" in c for c in joined)
+    assert any(f"systemctl restart {phases._HOST_DNS_SERVICE}" in c for c in joined)
+    assert "address=/workstation.internal/172.17.47.200" in writes[str(phases._HOST_DNS_CONF)]
+    assert "server=10.255.255.254" in writes[str(phases._HOST_DNS_CONF)]
+    assert "DNS=127.0.0.1:5353" in writes[str(phases._RESOLVED_DROPIN)]
+
+
+def test_apply_host_dns_dry_run_is_noop(monkeypatch):
+    def fail_run(*a, **k):
+        raise AssertionError("no command should run in dry-run")
+
+    monkeypatch.setattr(phases.command, "run", fail_run)
+
+    phases._apply_host_dns("172.17.47.200", dry_run=True)
+
