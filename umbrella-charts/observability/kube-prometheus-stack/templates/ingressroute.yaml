@@ -4,6 +4,13 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: grafana
+  annotations:
+    # Traefik owns the IngressRoute CRD but its ServiceMonitor needs the
+    # Prometheus Operator CRDs shipped by this chart, so on a fresh cluster the
+    # two bootstrap in a cycle. Skipping the dry-run on the missing CRD lets this
+    # chart apply the monitoring CRDs first; Traefik then renders and installs the
+    # IngressRoute CRD, and selfHeal reconciles this resource on the next pass.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   entryPoints:
     - {{ .entryPoint }}
