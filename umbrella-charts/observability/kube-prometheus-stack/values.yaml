@@ -2,6 +2,12 @@
 # Components across the platform expose metrics through ServiceMonitor/PodMonitor objects and ship
 # their Grafana dashboards as ConfigMaps (labelled grafana_dashboard=1); both are auto-discovered.
 kube-prometheus-stack:
+  # CRDs are owned by the standalone prometheus-operator-crds Application (sync-wave -1) so
+  # they are installed before workloads that render ServiceMonitors, breaking the fresh-cluster
+  # bootstrap cycle. Keep this chart from shipping them to avoid double ownership.
+  crds:
+    enabled: false
+
   # Alerting is out of scope for the workstation; keep the footprint metrics-only.
   alertmanager:
     enabled: false

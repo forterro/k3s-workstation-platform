@@ -1,0 +1,7 @@
+# The Prometheus Operator CRDs are installed as a standalone Application (sync-wave -1) so
+# they exist before any workload that ships ServiceMonitor/PodMonitor objects renders. This
+# breaks the fresh-cluster bootstrap cycle: Traefik enables a ServiceMonitor (so its chart
+# fails to render until monitoring.coreos.com CRDs exist), while the kube-prometheus-stack
+# chart cannot install those CRDs in the same sync because it also ships a Traefik IngressRoute
+# whose CRD is only registered once Traefik is up. Owning the CRDs here decouples the two.
+prometheus-operator-crds: {}
