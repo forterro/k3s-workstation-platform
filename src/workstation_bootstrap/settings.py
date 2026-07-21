@@ -20,6 +20,8 @@ CA_DIR = CONFIG_DIR / "ca"
 DEFAULT_REPO_URL = "https://github.com/forterro/k3s-workstation-platform.git"
 DEFAULT_REVISION = "main"
 LOADBALANCER_IP_KEY = "loadbalancer_ip"
+CONFIG_REPO_URL_KEY = "config_repo_url"
+CONFIG_REPO_REVISION_KEY = "config_repo_revision"
 GRAFANA_ADMIN_USER = "admin"
 
 
@@ -134,12 +136,54 @@ def ensure_loadbalancer_ip(
     return ip
 
 
-def extra_root_apps(config: dict) -> list[dict]:
-    """Return the optional extra root app-of-apps declared by the consumer.
+def config_repo_url(config: dict) -> str | None:
+    """Return the per-workstation config repository URL, if declared.
 
-    Each entry is a mapping with ``name`` (the helm release) and ``path`` (a chart directory,
-    relative to the platform repository root). Defaults to an empty list so the base platform stays
-    decoupled from any layer built on top of it (e.g. an AI stack in a sibling repository).
+    This is the personal composition repository cloned into ``CONFIG_DIR``. When set, the bootstrap
+    keeps ``CONFIG_DIR`` in sync with it (clone or pull) before applying the extra root app-of-apps.
+    """
+    url = config.get(CONFIG_REPO_URL_KEY)
+    return str(url) if url else None
+
+
+def ensure_config_repo(url: str | None, revision: str | None = None) -> None:
+    """Clone or update the per-workstation config repository at ``CONFIG_DIR``.
+
+    ``CONFIG_DIR`` holds both the tracked composition (charts, apps, overlays) and local root-of-
+    trust material that stays gitignored (CA, grafana password, rendered values). On a fresh
+    machine the directory may already exist with those local files but no git checkout, so cloning
+    is done via ``git init`` + ``fetch`` + ``checkout`` to avoid clobbering them; on an existing
+    checkout the tracked content is fast-forwarded with ``git pull``.
+    """
+    if not url:
+        return
+    branch = revision or DEFAULT_REVISION
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    is_repo = (CONFIG_DIR / ".git").exists()
+    if is_repo:
+        console.sub(f"updating config repo at {CONFIG_DIR} ({branch})")
+        command.run(["git", "-C", str(CONFIG_DIR), "pull", "--ff-only"], check=False)
+        return
+    console.sub(f"cloning config repo {url} into {CONFIG_DIR} ({branch})")
+    command.run(["git", "-C", str(CONFIG_DIR), "init", "-q"])
+    command.run(["git", "-C", str(CONFIG_DIR), "remote", "add", "origin", url])
+    command.run(["git", "-C", str(CONFIG_DIR), "fetch", "--depth", "1", "origin", branch])
+    command.run(["git", "-C", str(CONFIG_DIR), "checkout", "-f", "-B", branch, f"origin/{branch}"])
+
+
+def config_repo_revision(config: dict) -> str:
+    """Return the config repository revision (branch), defaulting to ``DEFAULT_REVISION``."""
+    return str(config.get(CONFIG_REPO_REVISION_KEY) or DEFAULT_REVISION)
+
+
+def extra_root_apps(config: dict) -> list[dict]:
+    """Return the layer components declared by the consumer.
+
+    Each entry describes one public layer chart the base platform should turn into an ArgoCD
+    Application: ``name`` (the Application name), ``project`` (its ArgoCD project), ``repo_url`` /
+    ``revision`` / ``path`` (the public chart source). The bootstrap injects this workstation's
+    ``config_repo_url`` as the ``configRepoURL`` Helm parameter. Defaults to an empty list so the
+    base platform stays decoupled from any layer built on top of it.
     """
     return list(config.get("extra_root_apps") or [])
 

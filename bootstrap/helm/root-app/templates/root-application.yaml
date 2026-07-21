@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: root
+  name: 0-root-k3s-workstation
   namespace: {{ $.Release.Namespace }}
   finalizers:
     # Path-qualified variant (has a `/`) so Kubernetes does not warn about the finalizer name;

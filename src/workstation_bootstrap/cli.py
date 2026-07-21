@@ -40,6 +40,14 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="IP",
         help="Fixed Traefik LoadBalancer IP (MetalLB); stored in config.yaml, prompted if unset",
     )
+    bootstrap_parser.add_argument(
+        "--config-repo",
+        metavar="URL",
+        help=(
+            "Per-workstation config repository to clone into ~/.k3s-workstation-platform on first "
+            "run; afterwards it is read from config.yaml and kept in sync"
+        ),
+    )
 
     reset_parser = subparsers.add_parser(
         "reset", help="Completely remove k3s and its cluster (k3s-uninstall)"
@@ -68,7 +76,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         loadbalancer_ip=args.loadbalancer_ip,
     )
-    return 0 if run_bootstrap(context) else 1
+    return 0 if run_bootstrap(context, config_repo=args.config_repo) else 1
 
 
 def _cmd_reset(args: argparse.Namespace) -> int:

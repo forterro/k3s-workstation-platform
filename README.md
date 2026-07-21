@@ -78,7 +78,7 @@ Then it runs the seed phases in order:
 5. Installs ArgoCD (with the KSOPS secrets plugin).
 6. Installs MetalLB and pins the Traefik LoadBalancer IP.
 7. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
-8. Installs the ArgoCD root app-of-apps.
+8. Installs the ArgoCD root app-of-apps (`0-root-k3s-workstation`).
 
 From there, ArgoCD tracks the git repository set in `rootApp` (see
 [bootstrap/helm/root-app/values.yaml](bootstrap/helm/root-app/values.yaml)) and reconciles the child
@@ -142,19 +142,32 @@ Once DNS is set up (see below), open `https://grafana.workstation.internal` and 
 
 ## Extra layers
 
-The base platform can hand ArgoCD extra root app-of-apps that live in sibling repositories, so a
-layer built on top (for example an AI stack) reconciles independently without the base code
-referencing it. Declare them under `extra_root_apps` in `~/.k3s-workstation-platform/config.yaml`:
+The base platform can layer optional **components** declared in a private per-workstation config
+repository. Each component is a public layer chart (the AI serving stack, apps...); the bootstrap
+turns it into one ArgoCD Application and injects the config repo URL, so the layer's child apps pick
+up this machine's value overlays and secrets. The layers reconcile independently without the base
+code referencing any of them.
+
+The config repo is cloned into `~/.k3s-workstation-platform` (the bootstrap's config directory) and
+declared in `config.yaml`:
 
 ```yaml
+config_repo_url: https://gitlab.example.com/you/workstation-config.git
+config_repo_revision: main
 extra_root_apps:
-  - name: ai-platform
-    path: ../ai-workstation-platform/bootstrap/helm/root-app
+  - name: 1-root-ai-workstation
+    project: ai-workstation
+    repo_url: https://github.com/forterro/ai-workstation-platform.git
+    revision: main
+    path: bootstrap/helm/layer
 ```
 
-Each `path` is a Helm chart directory resolved relative to this repository's root (a sibling
-submodule is reachable as `../<repo>/...`). The `extra-root-apps` phase installs each chart into the
-`argocd` namespace after the base root app. The list defaults to empty.
+Each entry points at a public layer chart (`repo_url` + `path`) and its ArgoCD `project`. On first
+run pass `--config-repo <url>` so the bootstrap clones it; afterwards it is read from `config.yaml`
+and kept in sync. The `extra-root-apps` phase seeds an ArgoCD repository credential for a private
+config repo (taken from the git credential helper), creates the `project`, and applies the layer
+Application into the `argocd` namespace after the base root app, injecting `configRepoURL`. Both
+settings default to empty, so the base platform runs standalone.
 
 ## Local access
 

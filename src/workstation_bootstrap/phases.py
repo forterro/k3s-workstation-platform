@@ -10,6 +10,7 @@ import base64
 import json
 import os
 import time
+import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
@@ -394,29 +395,167 @@ def _phase_root_app(context: Context) -> None:
     helm.install(chart, release="root-app", namespace="argocd", values=[values_file])
 
 
-def _phase_extra_root_apps(context: Context) -> None:
-    """Apply optional extra root app-of-apps declared in the consumer config.
+def _ensure_config_repo_credential(config: dict, env: dict[str, str]) -> None:
+    """Seed the ArgoCD repository credential for a private config repo, if any.
 
-    This keeps the base platform decoupled: layers built on top (e.g. an AI stack in a sibling
-    repository) register their own root app-of-apps via ``extra_root_apps`` in the consumer config,
-    without the base code referencing them. Each chart path is resolved relative to the platform
-    repository root, so a sibling submodule is reachable as ``../<repo>/bootstrap/helm/root-app``.
+    ArgoCD authenticates to pull the personal config repository (composition roots, value overlays,
+    encrypted secrets). The credential is read non-interactively from the host git credential helper
+    and published as an ArgoCD repository secret. If no credential is returned (public repository)
+    the step is skipped. The secret is applied as a manifest so the password never appears in a
+    process argument or the command log.
+    """
+    url = settings.config_repo_url(config)
+    if not url or not url.startswith("https://"):
+        return
+    host = urllib.parse.urlparse(url).hostname
+    if not host:
+        return
+    filled = command.run(
+        ["git", "credential", "fill"],
+        input_text=f"protocol=https\nhost={host}\n\n",
+        capture=True,
+        check=False,
+    ).stdout
+    creds = dict(line.split("=", 1) for line in filled.splitlines() if "=" in line)
+    password = creds.get("password")
+    if not password:
+        console.sub(f"no stored git credential for {host}; assuming a public config repo")
+        return
+    username = creds.get("username") or "git"
+    _apply_namespace("argocd", env)
+    manifest = (
+        "apiVersion: v1\n"
+        "kind: Secret\n"
+        "metadata:\n"
+        "  name: repo-workstation-config\n"
+        "  namespace: argocd\n"
+        "  labels:\n"
+        "    argocd.argoproj.io/secret-type: repository\n"
+        "type: Opaque\n"
+        "stringData:\n"
+        "  type: git\n"
+        f"  url: {json.dumps(url)}\n"
+        f"  username: {json.dumps(username)}\n"
+        f"  password: {json.dumps(password)}\n"
+    )
+    _kubectl_apply(manifest, env)
+    console.ok("ArgoCD credential for the config repo ensured (repo-workstation-config)")
+
+
+def _apply_appproject(name: str, env: dict[str, str]) -> None:
+    """Apply a permissive ArgoCD AppProject the layer Applications run under."""
+    manifest = (
+        "apiVersion: argoproj.io/v1alpha1\n"
+        "kind: AppProject\n"
+        "metadata:\n"
+        f"  name: {name}\n"
+        "  namespace: argocd\n"
+        "spec:\n"
+        f"  description: Per-workstation layer project ({name})\n"
+        "  sourceRepos:\n"
+        "    - '*'\n"
+        "  destinations:\n"
+        "    - namespace: '*'\n"
+        "      server: https://kubernetes.default.svc\n"
+        "  clusterResourceWhitelist:\n"
+        "    - group: '*'\n"
+        "      kind: '*'\n"
+        "  namespaceResourceWhitelist:\n"
+        "    - group: '*'\n"
+        "      kind: '*'\n"
+    )
+    _kubectl_apply(manifest, env)
+
+
+def _layer_application_manifest(
+    *,
+    name: str,
+    project: str,
+    repo_url: str,
+    revision: str,
+    path: str,
+    config_repo_url: str,
+    config_repo_revision: str,
+) -> str:
+    """Render the ArgoCD Application for a layer component, injecting the config repo URL."""
+    params = (
+        ("project", project),
+        ("configRepoURL", config_repo_url),
+        ("configRepoRevision", config_repo_revision),
+    )
+    param_lines = "".join(
+        f"        - name: {n}\n          value: {json.dumps(v)}\n" for n, v in params
+    )
+    return (
+        "apiVersion: argoproj.io/v1alpha1\n"
+        "kind: Application\n"
+        "metadata:\n"
+        f"  name: {name}\n"
+        "  namespace: argocd\n"
+        "  finalizers:\n"
+        "    - resources-finalizer.argocd.argoproj.io/background\n"
+        "spec:\n"
+        f"  project: {json.dumps(project)}\n"
+        "  source:\n"
+        f"    repoURL: {json.dumps(repo_url)}\n"
+        f"    targetRevision: {json.dumps(revision)}\n"
+        f"    path: {json.dumps(path)}\n"
+        "    helm:\n"
+        "      parameters:\n"
+        f"{param_lines}"
+        "  destination:\n"
+        "    server: https://kubernetes.default.svc\n"
+        "    namespace: argocd\n"
+        "  syncPolicy:\n"
+        "    automated:\n"
+        "      prune: true\n"
+        "      selfHeal: true\n"
+        "    syncOptions:\n"
+        "      - ServerSideApply=true\n"
+    )
+
+
+def _phase_extra_root_apps(context: Context) -> None:
+    """Create the layer root Applications declared in the consumer config.
+
+    Each ``extra_root_apps`` entry names a public layer chart (``repo_url`` + ``path``) and the
+    ArgoCD project it runs under. The bootstrap turns it into an ArgoCD Application, injecting this
+    workstation's private config repo (``config_repo_url``) as the ``configRepoURL`` Helm parameter
+    so the layer's child apps pick up the value overlays kept there. Nothing about the layers is
+    templated in the config repo: it only declares them. The ArgoCD credential for a private config
+    repo is seeded first so ArgoCD can pull those overlays.
     """
     config = settings.load_or_init_config(context.root)
-    for entry in settings.extra_root_apps(config):
+    entries = settings.extra_root_apps(config)
+    if not entries:
+        return
+    env = _kubectl_env()
+    _ensure_config_repo_credential(config, env)
+    cfg_url = settings.config_repo_url(config) or ""
+    cfg_rev = settings.config_repo_revision(config)
+    for entry in entries:
         name = entry.get("name")
-        raw_path = entry.get("path")
-        if not name or not raw_path:
+        repo_url = entry.get("repo_url")
+        path = entry.get("path")
+        if not name or not repo_url or not path:
             raise PhaseError(f"invalid extra_root_apps entry: {entry!r}")
-        chart = (context.root / raw_path).resolve()
-        if not chart.exists():
-            raise PhaseError(f"extra root app chart not found: {chart}")
-        if helm.release_exists(name, "argocd"):
-            console.sub(f"extra root app '{name}' already seeded \u2014 skipping")
-            continue
-        console.sub(f"applying extra root app '{name}' from {chart}")
-        helm.update_dependencies(chart)
-        helm.install(chart, release=name, namespace="argocd")
+        project = entry.get("project") or "default"
+        revision = entry.get("revision") or settings.DEFAULT_REVISION
+        if project != "default":
+            _apply_appproject(project, env)
+        console.sub(f"applying layer root '{name}' from {repo_url} ({path})")
+        _kubectl_apply(
+            _layer_application_manifest(
+                name=name,
+                project=project,
+                repo_url=repo_url,
+                revision=revision,
+                path=path,
+                config_repo_url=cfg_url,
+                config_repo_revision=cfg_rev,
+            ),
+            env,
+        )
 
 
 def _apply_seed_chart(
@@ -483,13 +622,25 @@ PHASE_PLAN: tuple[Phase, ...] = (
     Phase("root-app", "Apply the ArgoCD root app-of-apps", _phase_root_app),
     Phase(
         "extra-root-apps",
-        "Apply optional extra root app-of-apps declared in the consumer config",
+        "Create the layer root Applications declared in the consumer config",
         _phase_extra_root_apps,
     ),
 )
 
 
-def run_bootstrap(context: Context) -> bool:
+def _sync_config_repo(context: Context, override: str | None) -> None:
+    """Clone or update the per-workstation config repo before any phase reads CONFIG_DIR."""
+    url = override
+    revision = None
+    if settings.CONFIG_FILE.exists():
+        config = settings.load_or_init_config(context.root)
+        url = url or settings.config_repo_url(config)
+        revision = config.get(settings.CONFIG_REPO_REVISION_KEY)
+    if url:
+        settings.ensure_config_repo(url, revision)
+
+
+def run_bootstrap(context: Context, config_repo: str | None = None) -> bool:
     """Execute the seed phases in order. Returns True on success."""
     console.step("Bootstrapping the workstation cluster")
 
@@ -502,6 +653,8 @@ def run_bootstrap(context: Context) -> bool:
         for index, phase in enumerate(PHASE_PLAN, start=1):
             console.sub(f"[{index}] {phase.name}: {phase.description}")
         return True
+
+    _sync_config_repo(context, config_repo)
 
     for index, phase in enumerate(PHASE_PLAN, start=1):
         console.step(f"Phase [{index}] {phase.name}")
