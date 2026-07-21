@@ -1,0 +1,9 @@
+# Auto-activate this project's uv-managed virtualenv on entry.
+# mise is already hooked into the shell (`mise activate bash`), so it sets VIRTUAL_ENV/PATH to
+# this .venv when you enter the directory and restores them when you leave. That prevents a venv
+# from another project (e.g. one activated manually) from leaking in and triggering uv's
+# "VIRTUAL_ENV does not match the project environment" warning.
+#
+# Run `uv sync` once to create .venv, then `mise trust` to allow this config.
+[env]
+_.python.venv = { path = ".venv", create = false }
