@@ -174,6 +174,9 @@ config repo (taken from the git credential helper), creates the `project`, and a
 Application into the `argocd` namespace after the base root app, injecting `configRepoURL`. Both
 settings default to empty, so the base platform runs standalone.
 
+For a full walk-through of creating the private config repo (age key, `config.yaml`, secrets, bootstrap
+wiring), see [docs/private-config-repo.md](docs/private-config-repo.md).
+
 ## Local access
 
 How access works:
