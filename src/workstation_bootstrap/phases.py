@@ -40,6 +40,7 @@ _HOST_DNS_UNIT = Path("/etc/systemd/system/workstation-internal-dns.service")
 _RESOLVED_DROPIN = Path("/etc/systemd/resolved.conf.d/workstation-internal.conf")
 _NSSWITCH_PATH = Path("/etc/nsswitch.conf")
 _HOST_CA_CERT = Path("/usr/local/share/ca-certificates/workstation-root-ca.crt")
+_HOST_NODE_CA_DROPIN = Path("/etc/profile.d/workstation-node-ca.sh")
 
 _OBSERVABILITY_NAMESPACE = "observability"
 _GRAFANA_ADMIN_SECRET = "grafana-admin"
@@ -213,14 +214,39 @@ def _trust_ca_on_host(ca: Path) -> None:
         return
     desired = source.read_text(encoding="ascii")
     try:
-        if _HOST_CA_CERT.read_text(encoding="ascii") == desired:
-            console.ok("workstation root CA already trusted by the host")
+        current: str | None = _HOST_CA_CERT.read_text(encoding="ascii")
+    except OSError:
+        current = None
+    if current != desired:
+        _sudo_write(_HOST_CA_CERT, desired)
+        command.run(_sudo(["update-ca-certificates"]))
+        console.ok("workstation root CA installed into the host trust store")
+    else:
+        console.ok("workstation root CA already trusted by the host")
+    # The CA is public; make it world-readable so the user's Node process can load it.
+    command.run(_sudo(["chmod", "644", str(_HOST_CA_CERT)]))
+    _ensure_node_ca_env()
+
+
+def _ensure_node_ca_env() -> None:
+    """Point Node processes at the workstation root CA via a profile.d drop-in.
+
+    Node ignores the system trust store, so tools running under it (the VS Code extension host and
+    the local coding agent) fail TLS to ``*.workstation.internal`` unless NODE_EXTRA_CA_CERTS names
+    the CA. Every login shell then exports it, including the editor server it launches. Idempotent;
+    a running editor server must be restarted to pick up the new environment.
+    """
+    desired = (
+        "# Managed by k3s-workstation-platform bootstrap\n"
+        f"export NODE_EXTRA_CA_CERTS={_HOST_CA_CERT}\n"
+    )
+    try:
+        if _HOST_NODE_CA_DROPIN.read_text(encoding="utf-8") == desired:
             return
     except OSError:
         pass
-    _sudo_write(_HOST_CA_CERT, desired)
-    command.run(_sudo(["update-ca-certificates"]))
-    console.ok("workstation root CA installed into the host trust store")
+    _sudo_write(_HOST_NODE_CA_DROPIN, desired)
+    console.ok("NODE_EXTRA_CA_CERTS drop-in installed (restart the editor server to apply)")
 
 
 def _phase_step_ca_material(context: Context) -> None:

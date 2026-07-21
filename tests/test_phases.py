@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -317,6 +318,7 @@ def test_trust_ca_on_host_installs_when_absent(monkeypatch, tmp_path):
     (ca / "root_ca.crt").write_text("PEM", encoding="ascii")
     target = tmp_path / "missing" / "workstation-root-ca.crt"
     monkeypatch.setattr(phases, "_HOST_CA_CERT", target)
+    monkeypatch.setattr(phases, "_HOST_NODE_CA_DROPIN", tmp_path / "node-ca.sh")
 
     calls: list[list[str]] = []
     writes: dict[str, str] = {}
@@ -337,21 +339,77 @@ def test_trust_ca_on_host_installs_when_absent(monkeypatch, tmp_path):
 
     joined = [" ".join(c) for c in calls]
     assert any("update-ca-certificates" in c for c in joined)
+    assert any(f"chmod 644 {target}" in c for c in joined)
     assert writes[str(target)] == "PEM"
+    assert "NODE_EXTRA_CA_CERTS" in writes[str(tmp_path / "node-ca.sh")]
 
 
-def test_trust_ca_on_host_skips_when_current(monkeypatch, tmp_path):
+def test_trust_ca_on_host_skips_update_when_current(monkeypatch, tmp_path):
     ca = tmp_path / "ca"
     ca.mkdir()
     (ca / "root_ca.crt").write_text("PEM", encoding="ascii")
     installed = tmp_path / "workstation-root-ca.crt"
     installed.write_text("PEM", encoding="ascii")
     monkeypatch.setattr(phases, "_HOST_CA_CERT", installed)
+    monkeypatch.setattr(phases, "_HOST_NODE_CA_DROPIN", tmp_path / "node-ca.sh")
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+
+        class _Result:
+            stdout = ""
+
+        return _Result()
+
+    monkeypatch.setattr(phases.command, "run", fake_run)
+
+    phases._trust_ca_on_host(ca)
+
+    joined = [" ".join(c) for c in calls]
+    assert not any("update-ca-certificates" in c for c in joined)
+    assert any(f"chmod 644 {installed}" in c for c in joined)
+
+
+def test_ensure_node_ca_env_writes_dropin_when_missing(monkeypatch, tmp_path):
+    dropin = tmp_path / "profile.d" / "workstation-node-ca.sh"
+    monkeypatch.setattr(phases, "_HOST_NODE_CA_DROPIN", dropin)
+    monkeypatch.setattr(phases, "_HOST_CA_CERT", Path("/usr/local/share/ca-certificates/x.crt"))
+
+    writes: dict[str, str] = {}
+
+    def fake_run(cmd, **kwargs):
+        if "tee" in cmd:
+            writes[cmd[-1]] = kwargs.get("input_text", "")
+
+        class _Result:
+            stdout = ""
+
+        return _Result()
+
+    monkeypatch.setattr(phases.command, "run", fake_run)
+
+    phases._ensure_node_ca_env()
+
+    written = writes[str(dropin)]
+    assert "export NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/x.crt" in written
+
+
+def test_ensure_node_ca_env_is_noop_when_current(monkeypatch, tmp_path):
+    dropin = tmp_path / "workstation-node-ca.sh"
+    monkeypatch.setattr(phases, "_HOST_NODE_CA_DROPIN", dropin)
+    monkeypatch.setattr(phases, "_HOST_CA_CERT", Path("/usr/local/share/ca-certificates/x.crt"))
+    dropin.write_text(
+        "# Managed by k3s-workstation-platform bootstrap\n"
+        "export NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/x.crt\n",
+        encoding="utf-8",
+    )
 
     def fail_run(*a, **k):
-        raise AssertionError("update-ca-certificates should not run when the CA is current")
+        raise AssertionError("no command should run when the drop-in is already current")
 
     monkeypatch.setattr(phases.command, "run", fail_run)
 
-    phases._trust_ca_on_host(ca)
+    phases._ensure_node_ca_env()
 
