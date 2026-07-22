@@ -5,6 +5,11 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
+    # KubeBlocks CRDs carry many schema defaults (and admission webhooks) that the
+    # API server injects on apply (timeoutSeconds, podManagementPolicy, protocol,
+    # updateStrategy, ...). ServerSideDiff computes the predicted merge server-side
+    # so those defaulted fields no longer show as permanent OutOfSync drift.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: workstation
   source:
