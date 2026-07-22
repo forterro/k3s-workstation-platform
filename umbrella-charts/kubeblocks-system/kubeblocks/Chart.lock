@@ -1,7 +1,7 @@
 dependencies:
 - name: kubeblocks
   repository: https://apecloud.github.io/helm-charts
-  version: 1.0.1
+  version: 1.0.2
 - name: postgresql
   repository: https://apecloud.github.io/helm-charts
   version: 1.0.2
@@ -14,5 +14,5 @@ dependencies:
 - name: qdrant
   repository: https://apecloud.github.io/helm-charts
   version: 1.0.2
-digest: sha256:21b2f9f41cc2efad1cd6f1d616a231b4b5620fb6aecd0ec223abae827bf97267
-generated: "2026-07-22T09:04:27.17889644+02:00"
+digest: sha256:4c649b55875ea20fdeb22d39daf6b1926aa345bfdc9c3bc0fba0e5470fd7a9eb
+generated: "2026-07-22T07:24:55.433422336Z"
