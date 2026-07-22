@@ -25,6 +25,26 @@ argo-cd:
     cm:
       # Required for the KSOPS kustomize exec plugin.
       kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+      # Stop the application controller from reprocessing (UI "blinking") on the
+      # high-frequency child ConfigMap updates KubeBlocks generates: each component
+      # runs a lease/leader election stored in "<cluster>-<component>-leader", whose
+      # annotations (renew-time, holder, ttl, ...) are rewritten every few seconds.
+      # ignoreResourceUpdates skips watch-triggered refreshes when an update only
+      # touches ignored fields; it does not affect diff/sync correctness. This key
+      # REPLACES the chart default, so the two default expressions are kept below.
+      resource.customizations.ignoreResourceUpdates.ConfigMap: |
+        jqPathExpressions:
+          # Chart defaults (kept):
+          - '.metadata.annotations."cluster-autoscaler.kubernetes.io/last-updated"'
+          - '.metadata.annotations."control-plane.alpha.kubernetes.io/leader"'
+          # KubeBlocks component leader-election lease annotations:
+          - '.metadata.annotations."acquire-time"'
+          - '.metadata.annotations."available-time"'
+          - '.metadata.annotations."renew-time"'
+          - '.metadata.annotations."holder"'
+          - '.metadata.annotations."leader"'
+          - '.metadata.annotations."ttl"'
+          - '.metadata.annotations."extra"'
   dex:
     enabled: false
   notifications:
