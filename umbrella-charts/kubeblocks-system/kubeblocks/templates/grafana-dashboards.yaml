@@ -1,0 +1,32 @@
+{{- if .Values.dashboards.enabled }}
+# Grafana dashboards for the KubeBlocks database engines, shipped ONCE at the operator
+# level (not per Cluster instance). Rendered as ConfigMaps labelled grafana_dashboard=1
+# and auto-loaded by the Grafana sidecar into the "{{ .Values.dashboards.grafanaFolder }}"
+# folder. Per-instance metrics still require each Cluster to enable its exporter
+# (disableExporter=false) and ship a PodMonitor in its own namespace.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubeblocks-dashboard-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ .Values.dashboards.grafanaFolder | quote }}
+data:
+  kubeblocks-postgresql.json: |-
+{{ .Files.Get "dashboards/postgresql.json" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubeblocks-dashboard-mongodb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ .Values.dashboards.grafanaFolder | quote }}
+data:
+  kubeblocks-mongodb.json: |-
+{{ .Files.Get "dashboards/mongodb.json" | indent 4 }}
+{{- end }}

@@ -14,7 +14,11 @@ kubeblocks:
   # (registry host only, not the tag: the chart keeps providing the tag default).
   image:
     registry: docker.io
+  # No object-storage backup repo on the workstation, so the dataProtection
+  # backup/restore controllers cannot function (they need a BackupRepo, i.e. S3).
+  # Disable them to avoid running a manager that has nothing to reconcile.
   dataProtection:
+    enabled: false
     image:
       registry: docker.io
   addonChartsImage:
@@ -46,3 +50,12 @@ mongodb:
 qdrant:
   image:
     registry: docker.io
+
+# Grafana dashboards for the KubeBlocks database engines, shipped once here at the
+# operator level (templates/grafana-dashboards.yaml) rather than duplicated per Cluster
+# instance. They are engine-generic and loaded by the Grafana sidecar (grafana_dashboard=1)
+# into the folder below. Each database instance still enables its own exporter
+# (disableExporter=false) and ships a PodMonitor in its namespace to feed these dashboards.
+dashboards:
+  enabled: true
+  grafanaFolder: KubeBlocks
