@@ -8,7 +8,7 @@ dependencies:
   # renovate: registryUrl=https://apecloud.github.io/helm-charts
   - name: kubeblocks
     repository: https://apecloud.github.io/helm-charts
-    version: 1.0.1
+    version: 1.0.2
   # renovate: registryUrl=https://apecloud.github.io/helm-charts
   - name: postgresql
     repository: https://apecloud.github.io/helm-charts
@@ -20,7 +20,7 @@ dependencies:
   # renovate: registryUrl=https://apecloud.github.io/helm-charts
   - name: mongodb
     repository: https://apecloud.github.io/helm-charts
-    version: 1.0.3
+    version: 1.0.2
   # renovate: registryUrl=https://apecloud.github.io/helm-charts
   - name: qdrant
     repository: https://apecloud.github.io/helm-charts
