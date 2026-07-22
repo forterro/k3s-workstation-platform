@@ -49,6 +49,16 @@ imperatively (a Python seed) and then hands off to ArgoCD (app-of-apps) for GitO
   challenge to resolve inside the cluster. No host ports.
 - `umbrella-charts/kube-mgmt/headlamp` — Headlamp + a cert-manager `Certificate` and a Traefik
   `IngressRoute` (TLS) on `headlamp.workstation.internal`.
+- `umbrella-charts/kubeblocks-system/kubeblocks` — the KubeBlocks database operator (apecloud) plus
+  the `postgresql`, `redis`, `mongodb` and `qdrant` engine addons, wrapping the upstream `kubeblocks`
+  + engine charts from https://apecloud.github.io/helm-charts (generic mechanism mirrored from the
+  datacentre, stripped of its Vault/external-secrets, S3 backup repo and image pull secret specifics). Reconciled by
+  `apps/kubeblocks.yaml` (ns `kb-system`, sync-wave -1, ServerSideApply + CreateNamespace + retry).
+  Provides the external Postgres for stateful workloads (e.g. the LiteLLM UI). The KubeBlocks Helm
+  chart does NOT ship its CRDs and the release bundle exceeds Helm's 5 MiB per-file limit, so the
+  CRDs are vendored split one-file-per-CRD under the chart `crds/` dir by `make kubeblocks-crds`
+  (`scripts/vendor-kubeblocks-crds.sh`, version read from the pinned `kubeblocks` dependency); refresh
+  them when Renovate bumps that dependency. `make deps` vendors the operator + addon tgz.
 
 ## Fixed Traefik LoadBalancer IP (MetalLB)
 

@@ -1,4 +1,4 @@
-.PHONY: sync lint format test preflight bootstrap reset deps generate-ca
+.PHONY: sync lint format test preflight bootstrap reset deps generate-ca kubeblocks-crds
 
 sync:
 	uv sync
@@ -28,3 +28,6 @@ deps:
 
 generate-ca:
 	bash scripts/generate-ca.sh
+
+kubeblocks-crds:
+	bash scripts/vendor-kubeblocks-crds.sh

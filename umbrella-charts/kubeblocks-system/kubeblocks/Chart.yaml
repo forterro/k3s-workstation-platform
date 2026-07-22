@@ -1,0 +1,27 @@
+apiVersion: v2
+name: kubeblocks-umbrella
+description: KubeBlocks operator and database engine addons for the k3s workstation platform (GitOps-managed)
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://apecloud.github.io/helm-charts
+  - name: kubeblocks
+    repository: https://apecloud.github.io/helm-charts
+    version: 1.0.1
+  # renovate: registryUrl=https://apecloud.github.io/helm-charts
+  - name: postgresql
+    repository: https://apecloud.github.io/helm-charts
+    version: 1.0.2
+  # renovate: registryUrl=https://apecloud.github.io/helm-charts
+  - name: redis
+    repository: https://apecloud.github.io/helm-charts
+    version: 1.0.2
+  # renovate: registryUrl=https://apecloud.github.io/helm-charts
+  - name: mongodb
+    repository: https://apecloud.github.io/helm-charts
+    version: 1.0.3
+  # renovate: registryUrl=https://apecloud.github.io/helm-charts
+  - name: qdrant
+    repository: https://apecloud.github.io/helm-charts
+    version: 1.0.2

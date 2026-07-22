@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubeblocks
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: workstation
+  source:
+    repoURL: https://github.com/forterro/k3s-workstation-platform.git
+    targetRevision: main
+    path: umbrella-charts/kubeblocks-system/kubeblocks
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kb-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # KubeBlocks ships large CRDs: ServerSideApply avoids the client-side
+    # last-applied annotation size limit, and the retry/backoff absorbs the
+    # CRD-then-CR ordering races during the initial install.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true

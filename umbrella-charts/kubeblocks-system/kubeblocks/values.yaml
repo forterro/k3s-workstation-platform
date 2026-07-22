@@ -1,0 +1,42 @@
+# KubeBlocks operator + PostgreSQL addon for the single-node k3s workstation.
+# Generic values only: no Vault/external-secrets, no S3 backup repo, no private
+# image pull secret (those are datacentre-specific). Image tags are NOT pinned
+# here; the subcharts provide their own defaults (Renovate bumps the chart
+# dependency versions in Chart.yaml).
+kubeblocks:
+  # Single-node workstation: one operator replica is enough (DC runs 3 for HA).
+  replicaCount: 1
+  resources:
+    cpu: "1"
+    memory: 1Gi
+  # The operator image defaults to an Alibaba (China) registry, which the company
+  # network policy blocks. Override every operator image source to docker.io
+  # (registry host only, not the tag: the chart keeps providing the tag default).
+  image:
+    registry: docker.io
+  dataProtection:
+    image:
+      registry: docker.io
+  addonChartsImage:
+    registry: docker.io
+  # Do not auto-install every addon; the addons we need are declared as explicit
+  # chart dependencies (postgresql, redis, mongodb, qdrant).
+  autoInstalledAddons: []
+  # No object-storage backup repo on the workstation.
+  backupRepo:
+    create: false
+
+# Engine addons: pin the registry host to docker.io as well (defensively; these
+# charts already default to docker.io) so the China registry is never used.
+postgresql:
+  image:
+    registry: docker.io
+redis:
+  image:
+    registry: docker.io
+mongodb:
+  image:
+    registry: docker.io
+qdrant:
+  image:
+    registry: docker.io
