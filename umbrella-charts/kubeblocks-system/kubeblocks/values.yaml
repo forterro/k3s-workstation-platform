@@ -37,6 +37,12 @@ redis:
 mongodb:
   image:
     registry: docker.io
+  # The mongodb 1.0.2 ComponentDefinitions only populate spec.runtime.volumes
+  # when logCollector is enabled; left off, the chart renders `volumes: null`,
+  # which the CRD rejects (must be an array). Enabling it adds a single log-data
+  # volume (no sidecar), which keeps the field a valid non-empty array.
+  logCollector:
+    enabled: true
 qdrant:
   image:
     registry: docker.io
