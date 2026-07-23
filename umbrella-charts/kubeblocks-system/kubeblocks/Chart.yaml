@@ -16,7 +16,7 @@ dependencies:
   # renovate: registryUrl=https://apecloud.github.io/helm-charts
   - name: redis
     repository: https://apecloud.github.io/helm-charts
-    version: 1.0.2
+    version: 1.0.4
   # renovate: registryUrl=https://apecloud.github.io/helm-charts
   - name: mongodb
     repository: https://apecloud.github.io/helm-charts

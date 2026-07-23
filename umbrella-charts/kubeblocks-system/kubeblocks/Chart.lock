@@ -7,12 +7,12 @@ dependencies:
   version: 1.0.2
 - name: redis
   repository: https://apecloud.github.io/helm-charts
-  version: 1.0.2
+  version: 1.0.4
 - name: mongodb
   repository: https://apecloud.github.io/helm-charts
   version: 1.0.2
 - name: qdrant
   repository: https://apecloud.github.io/helm-charts
   version: 1.0.2
-digest: sha256:9d7ef368221549cb27d10b4bf6075af239fe9fade4589dc028bc5cbfd6b89cb8
-generated: "2026-07-22T09:23:24.204027184+02:00"
+digest: sha256:cfaad53a55214fb7aea3f2aab09bfd15cad479994d90bd031c3db9d171b533e2
+generated: "2026-07-23T04:09:23.876259821Z"
