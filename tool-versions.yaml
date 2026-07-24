@@ -6,7 +6,7 @@ tools:
   # renovate: datasource=github-releases depName=helm/helm
   helm: v4.2.3
   # renovate: datasource=github-releases depName=getsops/sops
-  sops: v3.13.2
+  sops: v3.13.3
   # renovate: datasource=github-releases depName=FiloSottile/age
   age: v1.3.1
   # renovate: datasource=github-releases depName=smallstep/cli
