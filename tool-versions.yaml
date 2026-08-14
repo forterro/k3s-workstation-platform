@@ -4,7 +4,7 @@ tools:
   # renovate: datasource=github-releases depName=kubernetes/kubernetes
   kubectl: v1.36.2
   # renovate: datasource=github-releases depName=helm/helm
-  helm: v4.2.3
+  helm: v4.2.4
   # renovate: datasource=github-releases depName=getsops/sops
   sops: v3.13.2
   # renovate: datasource=github-releases depName=FiloSottile/age
