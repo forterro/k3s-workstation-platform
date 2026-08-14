@@ -24,4 +24,4 @@ dependencies:
   # renovate: registryUrl=https://apecloud.github.io/helm-charts
   - name: qdrant
     repository: https://apecloud.github.io/helm-charts
-    version: 1.0.2
+    version: 1.0.3

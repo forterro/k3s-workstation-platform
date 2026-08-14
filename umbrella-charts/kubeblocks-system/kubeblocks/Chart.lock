@@ -13,6 +13,6 @@ dependencies:
   version: 1.0.2
 - name: qdrant
   repository: https://apecloud.github.io/helm-charts
-  version: 1.0.2
-digest: sha256:9d7ef368221549cb27d10b4bf6075af239fe9fade4589dc028bc5cbfd6b89cb8
-generated: "2026-07-22T09:23:24.204027184+02:00"
+  version: 1.0.3
+digest: sha256:de49da11799db0f6244f4a09d71fbc452cb43c902b7c4f6fb38d5b9b59748b00
+generated: "2026-08-14T03:49:33.73525795Z"
