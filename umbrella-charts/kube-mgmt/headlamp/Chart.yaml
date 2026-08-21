@@ -8,4 +8,4 @@ dependencies:
   # renovate: registryUrl=https://kubernetes-sigs.github.io/headlamp/
   - name: headlamp
     repository: https://kubernetes-sigs.github.io/headlamp/
-    version: 0.43.0
+    version: 0.45.0
