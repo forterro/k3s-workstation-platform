@@ -2,7 +2,7 @@
 # Renovate keeps these current via a custom manager (configured in the CI increment).
 tools:
   # renovate: datasource=github-releases depName=kubernetes/kubernetes
-  kubectl: v1.36.2
+  kubectl: v1.37.0
   # renovate: datasource=github-releases depName=helm/helm
   helm: v4.2.3
   # renovate: datasource=github-releases depName=getsops/sops
