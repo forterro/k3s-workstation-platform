@@ -36,3 +36,19 @@ spec:
       - ServerSideApply=true
       - CreateNamespace=true
       - SkipDryRunOnMissingResource=true
+  # The KubeBlocks operator asynchronously enriches ComponentDefinition specs after
+  # apply (lifecycleActions, runtime, services and StatefulSet defaults), which
+  # ServerSideDiff cannot predict, so they show as permanent OutOfSync. CDs are
+  # versioned and immutable (a new version is created, never patched in place), so
+  # ignoring these operator-owned fields is safe.
+  ignoreDifferences:
+    - group: apps.kubeblocks.io
+      kind: ComponentDefinition
+      jsonPointers:
+        - /spec/lifecycleActions
+        - /spec/runtime
+        - /spec/services
+        - /spec/minReadySeconds
+        - /spec/podManagementPolicy
+        - /spec/podUpdatePolicy
+        - /spec/updateStrategy
