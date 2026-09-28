@@ -16,6 +16,12 @@
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "groupName": "all non-major dependencies",
       "groupSlug": "all-minor-patch"
+    },
+    {
+      "description": "KubeBlocks addon charts ship versioned, immutable ComponentDefinitions consumed by running database clusters. Bumping them makes ArgoCD prune the in-use CDs and requires a planned CD migration, so do not open automatic update PRs for them.",
+      "matchFileNames": ["umbrella-charts/kubeblocks-system/kubeblocks/Chart.yaml"],
+      "matchDepNames": ["kubeblocks", "postgresql", "redis", "mongodb", "qdrant"],
+      "enabled": false
     }
   ],
   "postUpgradeTasks": {
