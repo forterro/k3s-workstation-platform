@@ -1,0 +1,73 @@
+# Log collection of the workstation. Single node: one Alloy replica tails every pod through the
+# Kubernetes API (no hostPath mount, which WSL2 does not handle well) and ships the logs and the
+# cluster events to Loki.
+alloy:
+  fullnameOverride: alloy
+  controller:
+    type: deployment
+    replicas: 1
+  alloy:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+    configMap:
+      content: |
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.relabel "pods" {
+          targets = discovery.kubernetes.pods.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex         = "Pending|Succeeded|Failed|Completed"
+            action        = "drop"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label  = "app"
+          }
+          // Agent harness: one stream per team and agent.
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_harness_forterro_io_team"]
+            target_label  = "team"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_harness_forterro_io_agent"]
+            target_label  = "agent"
+          }
+        }
+
+        loki.source.kubernetes "pods" {
+          targets    = discovery.relabel.pods.output
+          forward_to = [loki.write.local.receiver]
+        }
+
+        loki.source.kubernetes_events "events" {
+          job_name   = "kubernetes-events"
+          log_format = "json"
+          forward_to = [loki.write.local.receiver]
+        }
+
+        loki.write "local" {
+          endpoint {
+            url = "http://loki.observability.svc.cluster.local:3100/loki/api/v1/push"
+          }
+        }
+  serviceMonitor:
+    enabled: true

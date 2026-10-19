@@ -115,10 +115,13 @@ Once DNS is set up (see below), the UI is also reachable at
 
 ## Open Grafana
 
-Observability is a metrics-only stack built on the Prometheus Operator (kube-prometheus-stack):
-Prometheus, Grafana and the node/kube-state exporters. Any component registers itself by shipping a
-`ServiceMonitor`/`PodMonitor` (discovered cluster-wide) and its Grafana dashboards as ConfigMaps
-labelled `grafana_dashboard=1` (auto-loaded from any namespace).
+Observability is built on the Prometheus Operator (kube-prometheus-stack) for metrics and Loki for
+logs: Prometheus, Grafana and the node/kube-state exporters, plus Loki (single binary, 30 days) fed by
+Grafana Alloy, which tails every pod through the Kubernetes API and ships the Kubernetes events.
+Prometheus keeps up to 90 days, capped at 8 GB of its 10 Gi volume. Any component registers itself by
+shipping a `ServiceMonitor`/`PodMonitor` (discovered cluster-wide) and its Grafana dashboards as
+ConfigMaps labelled `grafana_dashboard=1` (auto-loaded from any namespace). The Loki datasource is
+provisioned the same way (`grafana_datasource=1`).
 
 The bootstrap generates a stable Grafana admin password on first run, stores it locally under
 `~/.k3s-workstation-platform/grafana/admin-password` (never committed to git) and publishes it as the

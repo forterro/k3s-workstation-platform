@@ -595,6 +595,11 @@ def _ensure_config_repo_credential(config: dict, env: dict[str, str]) -> None:
     process argument or the command log.
     """
     url = settings.config_repo_url(config)
+    _ensure_repo_credential(url, "repo-workstation-config", env)
+
+
+def _ensure_repo_credential(url: str | None, secret_name: str, env: dict[str, str]) -> None:
+    """Publish the host git credential of ``url`` as an ArgoCD repository secret, if any."""
     if not url or not url.startswith("https://"):
         return
     host = urllib.parse.urlparse(url).hostname
@@ -617,7 +622,7 @@ def _ensure_config_repo_credential(config: dict, env: dict[str, str]) -> None:
         "apiVersion: v1\n"
         "kind: Secret\n"
         "metadata:\n"
-        "  name: repo-workstation-config\n"
+        f"  name: {secret_name}\n"
         "  namespace: argocd\n"
         "  labels:\n"
         "    argocd.argoproj.io/secret-type: repository\n"
@@ -629,7 +634,7 @@ def _ensure_config_repo_credential(config: dict, env: dict[str, str]) -> None:
         f"  password: {json.dumps(password)}\n"
     )
     _kubectl_apply(manifest, env)
-    console.ok("ArgoCD credential for the config repo ensured (repo-workstation-config)")
+    console.ok(f"ArgoCD credential ensured for {url} ({secret_name})")
 
 
 def _apply_appproject(name: str, env: dict[str, str]) -> None:
@@ -733,6 +738,9 @@ def _phase_extra_root_apps(context: Context) -> None:
         revision = entry.get("revision") or settings.DEFAULT_REVISION
         if project != "default":
             _apply_appproject(project, env)
+        if entry.get("private"):
+            # A private layer repository needs its own ArgoCD credential (same host git helper).
+            _ensure_repo_credential(repo_url, f"repo-{name}", env)
         console.sub(f"applying layer root '{name}' from {repo_url} ({path})")
         _kubectl_apply(
             _layer_application_manifest(

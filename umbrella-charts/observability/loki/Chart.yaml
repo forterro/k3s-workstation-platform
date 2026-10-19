@@ -1,0 +1,11 @@
+apiVersion: v2
+name: loki
+description: Loki (single binary, filesystem) for the workstation platform logs, with its Grafana datasource
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://grafana.github.io/helm-charts
+  - name: loki
+    repository: https://grafana.github.io/helm-charts
+    version: 7.3.0

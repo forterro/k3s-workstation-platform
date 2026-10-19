@@ -107,6 +107,10 @@ extra_root_apps:
     path: bootstrap/helm/layer
 ```
 
+A layer chart hosted in a private repository adds `private: true`: the bootstrap then seeds an
+ArgoCD repository credential for that `repo_url` too (secret `repo-<name>`, from the git credential
+helper, like the config repo).
+
 The `loadbalancer_ip` must be a free address inside the WSL2 NAT subnet. The bootstrap prompts for it
 on first run if unset.
 
@@ -141,7 +145,8 @@ standalone when no private repo is supplied.
 The `extra-root-apps` phase runs after the base app-of-apps. For each `extra_root_apps` entry it:
 
 1. Seeds an ArgoCD repository credential for the private config repo (taken from the git credential
-   helper), so ArgoCD can read a private source.
+   helper), so ArgoCD can read a private source, and one for the layer repository when the entry
+   says `private: true`.
 2. Creates the ArgoCD `project`.
 3. Applies one ArgoCD `Application` pointing at the public layer chart (`repo_url` + `path`), injecting
    this repo's URL as the `configRepoURL` Helm parameter.

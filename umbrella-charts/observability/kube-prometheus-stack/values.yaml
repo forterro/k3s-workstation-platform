@@ -1,4 +1,5 @@
-# Metrics-only observability for the workstation platform, built on the Prometheus Operator.
+# Metrics for the workstation platform, built on the Prometheus Operator (logs: the loki and alloy
+# umbrella charts).
 # Components across the platform expose metrics through ServiceMonitor/PodMonitor objects and ship
 # their Grafana dashboards as ConfigMaps (labelled grafana_dashboard=1); both are auto-discovered.
 kube-prometheus-stack:
@@ -51,7 +52,10 @@ kube-prometheus-stack:
       podMonitorSelectorNilUsesHelmValues: false
       ruleSelectorNilUsesHelmValues: false
       probeSelectorNilUsesHelmValues: false
-      retention: 15d
+      # Keep history as long as the 10Gi volume allows (local-path cannot grow a volume): the size
+      # limit wins over the time limit.
+      retention: 90d
+      retentionSize: 8GB
       resources:
         requests:
           cpu: 100m

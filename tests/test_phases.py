@@ -413,3 +413,47 @@ def test_ensure_node_ca_env_is_noop_when_current(monkeypatch, tmp_path):
 
     phases._ensure_node_ca_env()
 
+
+
+def test_phase_extra_root_apps_seeds_credentials_only_for_private_layers(monkeypatch, tmp_path):
+    config = {
+        "config_repo_url": "https://gitlab.example/og/config.git",
+        "extra_root_apps": [
+            {"name": "1-root-public", "repo_url": "https://github.com/o/public.git",
+             "path": "layer"},
+            {"name": "2-root-private", "project": "p", "repo_url": "https://gitlab.example/og/private.git",
+             "path": "layer", "private": True},
+        ],
+    }
+    monkeypatch.setattr(phases.settings, "load_or_init_config", lambda root: config)
+    monkeypatch.setattr(phases, "_kubectl_env", lambda: {})
+    monkeypatch.setattr(phases, "_apply_appproject", lambda name, env: None)
+    seeded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        phases, "_ensure_repo_credential", lambda url, name, env: seeded.append((name, url))
+    )
+    applied: list[str] = []
+    monkeypatch.setattr(phases, "_kubectl_apply", lambda manifest, env: applied.append(manifest))
+
+    phases._phase_extra_root_apps(phases.Context(root=tmp_path, dry_run=False))
+
+    assert seeded == [
+        ("repo-workstation-config", "https://gitlab.example/og/config.git"),
+        ("repo-2-root-private", "https://gitlab.example/og/private.git"),
+    ]
+    assert len(applied) == 2 and "name: 2-root-private" in applied[1]
+
+
+def test_ensure_repo_credential_publishes_host_credential(monkeypatch):
+    class _Result:
+        stdout = "protocol=https\nhost=gitlab.example\nusername=og\npassword=tok-123\n"
+
+    monkeypatch.setattr(phases.command, "run", lambda cmd, **kw: _Result())
+    monkeypatch.setattr(phases, "_apply_namespace", lambda ns, env: None)
+    applied: list[str] = []
+    monkeypatch.setattr(phases, "_kubectl_apply", lambda manifest, env: applied.append(manifest))
+
+    phases._ensure_repo_credential("https://gitlab.example/og/private.git", "repo-x", {})
+
+    assert "name: repo-x" in applied[0] and "secret-type: repository" in applied[0]
+    assert '"https://gitlab.example/og/private.git"' in applied[0] and '"tok-123"' in applied[0]
