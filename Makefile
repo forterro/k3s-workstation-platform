@@ -5,6 +5,7 @@ sync:
 
 lint:
 	uv run ruff check src
+	uv run ruff check dashboards-src
 
 format:
 	uv run ruff format src

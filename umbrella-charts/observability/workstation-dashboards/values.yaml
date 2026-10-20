@@ -1,0 +1,5 @@
+# Grafana folder of the dashboards (sidecar annotation `grafana_folder`).
+folder: Workstation
+# Label the Grafana dashboard sidecar watches.
+label: grafana_dashboard
+labelValue: "1"

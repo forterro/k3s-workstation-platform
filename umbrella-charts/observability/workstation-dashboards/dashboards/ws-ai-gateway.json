@@ -1,0 +1,3618 @@
+{
+ "apiVersion": "dashboard.grafana.app/v2beta1",
+ "kind": "Dashboard",
+ "metadata": {
+  "name": "ws-ai-gateway"
+ },
+ "spec": {
+  "title": "02 - AI gateway",
+  "description": "LiteLLM, the gateway in front of the local and SaaS models: traffic, failures, latency, spend and deployments.",
+  "tags": [
+   "workstation"
+  ],
+  "editable": true,
+  "cursorSync": "Crosshair",
+  "liveNow": false,
+  "preload": false,
+  "timeSettings": {
+   "timezone": "browser",
+   "from": "now-24h",
+   "to": "now",
+   "autoRefresh": "1m",
+   "autoRefreshIntervals": [
+    "30s",
+    "1m",
+    "5m",
+    "15m",
+    "30m",
+    "1h"
+   ],
+   "hideTimepicker": false,
+   "fiscalYearStartMonth": 0
+  },
+  "links": [
+   {
+    "tooltip": "",
+    "tags": [],
+    "asDropdown": false,
+    "title": "Overview tab",
+    "type": "link",
+    "icon": "dashboard",
+    "url": "/d/ws-ai-gateway?dtab=overview",
+    "keepTime": true,
+    "includeVars": true,
+    "targetBlank": false
+   },
+   {
+    "tooltip": "",
+    "tags": [],
+    "asDropdown": false,
+    "title": "Workstation",
+    "type": "link",
+    "icon": "dashboard",
+    "url": "/d/ws-overview",
+    "keepTime": true,
+    "includeVars": false,
+    "targetBlank": false
+   },
+   {
+    "tooltip": "",
+    "tags": [
+     "workstation"
+    ],
+    "asDropdown": true,
+    "title": "Workstation dashboards",
+    "type": "dashboards",
+    "keepTime": true,
+    "includeVars": false
+   },
+   {
+    "tooltip": "",
+    "tags": [],
+    "asDropdown": false,
+    "title": "Upstream dashboards",
+    "type": "link",
+    "icon": "external link",
+    "url": "/dashboards",
+    "keepTime": false,
+    "includeVars": false,
+    "targetBlank": false
+   }
+  ],
+  "annotations": [],
+  "variables": [
+   {
+    "kind": "DatasourceVariable",
+    "spec": {
+     "name": "datasource",
+     "label": "Data source",
+     "hide": "dontHide",
+     "skipUrlSync": false,
+     "pluginId": "prometheus",
+     "refresh": "onDashboardLoad",
+     "regex": "",
+     "current": {
+      "text": "prometheus",
+      "value": "prometheus"
+     },
+     "options": [],
+     "multi": false,
+     "includeAll": false,
+     "allowCustomValue": true
+    }
+   }
+  ],
+  "elements": {
+   "panel-20": {
+    "kind": "Panel",
+    "spec": {
+     "id": 20,
+     "title": "",
+     "description": "",
+     "links": [],
+     "transparent": true,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "text",
+      "version": "",
+      "spec": {
+       "options": {
+        "mode": "markdown",
+        "content": "[Workstation](/d/ws-overview) \u203a [02 - AI gateway](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview) \u203a **Overview** &nbsp;&nbsp; [Traffic \u203a](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=traffic \"Next tab\")<br>Drill-down &nbsp;\u00b7&nbsp; AI gateway &nbsp;\u00b7&nbsp; **LiteLLM**"
+       },
+       "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-13": {
+    "kind": "Panel",
+    "spec": {
+     "id": 13,
+     "title": "Health",
+     "description": "FAILED: a deployment is out or LiteLLM is down. DEGRADED: a partial outage, or more than 5 % of the requests fail.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "max(label_replace(vector(0), \"k\", \"0\", \"\", \"\") or label_replace(max(litellm_deployment_state), \"k\", \"1\", \"\", \"\") or label_replace(2 * (max(up{job=\"litellm\"}) == bool 0), \"k\", \"2\", \"\", \"\") or label_replace(((sum(rate(litellm_proxy_failed_requests_metric_total[5m])) / (sum(rate(litellm_proxy_total_requests_metric_total[5m])))) >= bool 0.05) + ((sum(rate(litellm_proxy_failed_requests_metric_total[5m])) / (sum(rate(litellm_proxy_total_requests_metric_total[5m])))) >= bool 0.25), \"k\", \"3\", \"\", \"\"))",
+            "format": "time_series",
+            "instant": true,
+            "range": false
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "stat",
+      "version": "",
+      "spec": {
+       "options": {
+        "reduceOptions": {
+         "calcs": [
+          "lastNotNull"
+         ],
+         "fields": "",
+         "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "wideLayout": true,
+        "orientation": "auto",
+        "showPercentChange": false
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "noValue": "not measured",
+         "color": {
+          "mode": "thresholds"
+         },
+         "thresholds": {
+          "mode": "absolute",
+          "steps": [
+           {
+            "color": "#868A8E",
+            "value": null
+           },
+           {
+            "color": "#78C282",
+            "value": 0
+           },
+           {
+            "color": "#F4A54D",
+            "value": 1
+           },
+           {
+            "color": "#EC6A73",
+            "value": 2
+           }
+          ]
+         },
+         "mappings": [
+          {
+           "type": "value",
+           "options": {
+            "0": {
+             "text": "OK",
+             "color": "#78C282",
+             "index": 0
+            },
+            "1": {
+             "text": "DEGRADED",
+             "color": "#F4A54D",
+             "index": 1
+            },
+            "2": {
+             "text": "FAILED",
+             "color": "#EC6A73",
+             "index": 2
+            }
+           }
+          }
+         ]
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-14": {
+    "kind": "Panel",
+    "spec": {
+     "id": 14,
+     "title": "Traffic",
+     "description": "Requests per minute, keys and models in use (24 h).",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "(sum(rate(litellm_proxy_total_requests_metric_total[5m]))) * 60",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Requests / min"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "count(count by (api_key_alias) (increase(litellm_proxy_total_requests_metric_total[1d]) > 0))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Keys used"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "C",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "count(count by (requested_model) (increase(litellm_proxy_total_requests_metric_total[1d]) > 0))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Models used"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "D",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(litellm_in_flight_requests)",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "In flight"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "stat",
+      "version": "",
+      "spec": {
+       "options": {
+        "reduceOptions": {
+         "calcs": [
+          "lastNotNull"
+         ],
+         "fields": "",
+         "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "orientation": "auto",
+        "showPercentChange": false,
+        "text": {
+         "titleSize": 12,
+         "valueSize": 14
+        },
+        "minVizWidth": 140,
+        "minVizHeight": 40
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "noValue": "not measured",
+         "color": {
+          "mode": "thresholds"
+         },
+         "thresholds": {
+          "mode": "absolute",
+          "steps": [
+           {
+            "color": "#6E9FE6",
+            "value": null
+           }
+          ]
+         },
+         "mappings": [],
+         "links": [
+          {
+           "title": "Open Traffic",
+           "url": "/d/ws-ai-gateway?dtab=traffic&${datasource:queryparam}&${__url_time_range}"
+          }
+         ]
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Requests / min"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "none"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Keys used"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "none"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Models used"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "none"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "In flight"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "none"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "panel-15": {
+    "kind": "Panel",
+    "spec": {
+     "id": 15,
+     "title": "Errors",
+     "description": "Failed requests (24 h) and the failure share (5 min).",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(increase(litellm_proxy_failed_requests_metric_total[1d]))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Failed (24 h)"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(rate(litellm_proxy_failed_requests_metric_total[5m])) / (sum(rate(litellm_proxy_total_requests_metric_total[5m])))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Failure share"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "stat",
+      "version": "",
+      "spec": {
+       "options": {
+        "reduceOptions": {
+         "calcs": [
+          "lastNotNull"
+         ],
+         "fields": "",
+         "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "orientation": "auto",
+        "showPercentChange": false,
+        "text": {
+         "titleSize": 12,
+         "valueSize": 14
+        },
+        "minVizWidth": 140,
+        "minVizHeight": 40
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "noValue": "not measured",
+         "color": {
+          "mode": "thresholds"
+         },
+         "thresholds": {
+          "mode": "absolute",
+          "steps": [
+           {
+            "color": "#6E9FE6",
+            "value": null
+           }
+          ]
+         },
+         "mappings": [],
+         "links": [
+          {
+           "title": "Open Errors",
+           "url": "/d/ws-ai-gateway?dtab=errors&${datasource:queryparam}&${__url_time_range}"
+          }
+         ]
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Failed (24 h)"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "none"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#78C282",
+               "value": null
+              },
+              {
+               "color": "#F4A54D",
+               "value": 1
+              }
+             ]
+            }
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Failure share"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "percentunit"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#78C282",
+               "value": null
+              },
+              {
+               "color": "#F4A54D",
+               "value": 0.05
+              },
+              {
+               "color": "#EC6A73",
+               "value": 0.25
+              }
+             ]
+            }
+           },
+           {
+            "id": "noValue",
+            "value": "no request"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "panel-16": {
+    "kind": "Panel",
+    "spec": {
+     "id": 16,
+     "title": "Latency",
+     "description": "Average request time, time to the first token and the gateway's own overhead (5 min).",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(rate(litellm_request_total_latency_metric_sum[5m])) / sum(rate(litellm_request_total_latency_metric_count[5m]))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "total"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(rate(litellm_llm_api_time_to_first_token_metric_sum[5m])) / sum(rate(litellm_llm_api_time_to_first_token_metric_count[5m]))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "first token"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "C",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(rate(litellm_overhead_latency_metric_sum[5m])) / sum(rate(litellm_overhead_latency_metric_count[5m]))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "gateway overhead"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "stat",
+      "version": "",
+      "spec": {
+       "options": {
+        "reduceOptions": {
+         "calcs": [
+          "lastNotNull"
+         ],
+         "fields": "",
+         "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "orientation": "auto",
+        "showPercentChange": false,
+        "text": {
+         "titleSize": 12,
+         "valueSize": 14
+        },
+        "minVizWidth": 140,
+        "minVizHeight": 40
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "noValue": "not measured",
+         "color": {
+          "mode": "thresholds"
+         },
+         "thresholds": {
+          "mode": "absolute",
+          "steps": [
+           {
+            "color": "#6E9FE6",
+            "value": null
+           }
+          ]
+         },
+         "mappings": [],
+         "links": [
+          {
+           "title": "Open Latency",
+           "url": "/d/ws-ai-gateway?dtab=latency&${datasource:queryparam}&${__url_time_range}"
+          }
+         ]
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "total"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "s"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           },
+           {
+            "id": "noValue",
+            "value": "no request"
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "first token"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "s"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           },
+           {
+            "id": "noValue",
+            "value": "no request"
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "gateway overhead"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "s"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           },
+           {
+            "id": "noValue",
+            "value": "no request"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "panel-17": {
+    "kind": "Panel",
+    "spec": {
+     "id": 17,
+     "title": "Spend",
+     "description": "What the gateway billed (24 h): local models cost 0.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(increase(litellm_spend_metric_total[1d]))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Spend (24 h)"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(increase(litellm_total_tokens_metric_total[1d]))",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Tokens (24 h)"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "stat",
+      "version": "",
+      "spec": {
+       "options": {
+        "reduceOptions": {
+         "calcs": [
+          "lastNotNull"
+         ],
+         "fields": "",
+         "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "orientation": "auto",
+        "showPercentChange": false,
+        "text": {
+         "titleSize": 12,
+         "valueSize": 14
+        },
+        "minVizWidth": 140,
+        "minVizHeight": 40
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "noValue": "not measured",
+         "color": {
+          "mode": "thresholds"
+         },
+         "thresholds": {
+          "mode": "absolute",
+          "steps": [
+           {
+            "color": "#6E9FE6",
+            "value": null
+           }
+          ]
+         },
+         "mappings": [],
+         "links": [
+          {
+           "title": "Open Spend",
+           "url": "/d/ws-ai-gateway?dtab=spend&${datasource:queryparam}&${__url_time_range}"
+          }
+         ]
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Spend (24 h)"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "currencyUSD"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Tokens (24 h)"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "short"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "panel-18": {
+    "kind": "Panel",
+    "spec": {
+     "id": 18,
+     "title": "Deployments",
+     "description": "Model deployments behind the gateway by state.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "count(litellm_deployment_state == 0) or vector(0)",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Healthy"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "count(litellm_deployment_state == 1) or vector(0)",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Partial outage"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "C",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "count(litellm_deployment_state == 2) or vector(0)",
+            "format": "time_series",
+            "instant": true,
+            "range": false,
+            "legendFormat": "Outage"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "stat",
+      "version": "",
+      "spec": {
+       "options": {
+        "reduceOptions": {
+         "calcs": [
+          "lastNotNull"
+         ],
+         "fields": "",
+         "values": false
+        },
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "orientation": "auto",
+        "showPercentChange": false,
+        "text": {
+         "titleSize": 12,
+         "valueSize": 14
+        },
+        "minVizWidth": 140,
+        "minVizHeight": 40
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "noValue": "not measured",
+         "color": {
+          "mode": "thresholds"
+         },
+         "thresholds": {
+          "mode": "absolute",
+          "steps": [
+           {
+            "color": "#6E9FE6",
+            "value": null
+           }
+          ]
+         },
+         "mappings": [],
+         "links": [
+          {
+           "title": "Open Deployments",
+           "url": "/d/ws-ai-gateway?dtab=deployments&${datasource:queryparam}&${__url_time_range}"
+          }
+         ]
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Healthy"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "none"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#6E9FE6",
+               "value": null
+              }
+             ]
+            }
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Partial outage"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "none"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#78C282",
+               "value": null
+              },
+              {
+               "color": "#F4A54D",
+               "value": 1
+              }
+             ]
+            }
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Outage"
+          },
+          "properties": [
+           {
+            "id": "unit",
+            "value": "none"
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#78C282",
+               "value": null
+              },
+              {
+               "color": "#EC6A73",
+               "value": 1
+              }
+             ]
+            }
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "panel-19": {
+    "kind": "Panel",
+    "spec": {
+     "id": 19,
+     "title": "Health history",
+     "description": "Global health and health of every tab (0 OK, 1 DEGRADED, 2 FAILED).",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "max(label_replace(vector(0), \"k\", \"0\", \"\", \"\") or label_replace(max(litellm_deployment_state), \"k\", \"1\", \"\", \"\") or label_replace(2 * (max(up{job=\"litellm\"}) == bool 0), \"k\", \"2\", \"\", \"\") or label_replace(((sum(rate(litellm_proxy_failed_requests_metric_total[5m])) / (sum(rate(litellm_proxy_total_requests_metric_total[5m])))) >= bool 0.05) + ((sum(rate(litellm_proxy_failed_requests_metric_total[5m])) / (sum(rate(litellm_proxy_total_requests_metric_total[5m])))) >= bool 0.25), \"k\", \"3\", \"\", \"\"))",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "Health"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "(((sum(rate(litellm_proxy_failed_requests_metric_total[5m])) / (sum(rate(litellm_proxy_total_requests_metric_total[5m])))) >= bool 0.05) + ((sum(rate(litellm_proxy_failed_requests_metric_total[5m])) / (sum(rate(litellm_proxy_total_requests_metric_total[5m])))) >= bool 0.25)) or vector(0)",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "Errors"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "C",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "max(litellm_deployment_state) or vector(0)",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "Deployments"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "timeseries",
+      "version": "",
+      "spec": {
+       "options": {
+        "legend": {
+         "displayMode": "table",
+         "placement": "right",
+         "calcs": [
+          "max",
+          "lastNotNull"
+         ]
+        },
+        "tooltip": {
+         "mode": "multi",
+         "sort": "desc"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "color": {
+          "mode": "palette-classic"
+         },
+         "custom": {
+          "drawStyle": "line",
+          "lineWidth": 1,
+          "fillOpacity": 10,
+          "showPoints": "never",
+          "stacking": {
+           "mode": "none"
+          },
+          "lineInterpolation": "stepAfter"
+         },
+         "min": 0,
+         "max": 2,
+         "decimals": 0,
+         "mappings": [
+          {
+           "type": "value",
+           "options": {
+            "0": {
+             "text": "OK",
+             "color": "#78C282",
+             "index": 0
+            },
+            "1": {
+             "text": "DEGRADED",
+             "color": "#F4A54D",
+             "index": 1
+            },
+            "2": {
+             "text": "FAILED",
+             "color": "#EC6A73",
+             "index": 2
+            }
+           }
+          }
+         ]
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-21": {
+    "kind": "Panel",
+    "spec": {
+     "id": 21,
+     "title": "",
+     "description": "",
+     "links": [],
+     "transparent": true,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "text",
+      "version": "",
+      "spec": {
+       "options": {
+        "mode": "markdown",
+        "content": "[\u00ab](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview \"Overview tab\")&nbsp; [\u2039 Overview](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview \"Previous tab\") &nbsp;&nbsp; [Workstation](/d/ws-overview) \u203a [02 - AI gateway](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview) \u203a **Traffic** &nbsp;&nbsp; [Errors \u203a](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=errors \"Next tab\")<br>Drill-down &nbsp;\u00b7&nbsp; AI gateway &nbsp;\u00b7&nbsp; **LiteLLM**"
+       },
+       "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-1": {
+    "kind": "Panel",
+    "spec": {
+     "id": 1,
+     "title": "Requests per model",
+     "description": "Requests per minute per requested model.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (requested_model) (rate(litellm_proxy_total_requests_metric_total[$__rate_interval])) * 60",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{requested_model}}"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "timeseries",
+      "version": "",
+      "spec": {
+       "options": {
+        "legend": {
+         "displayMode": "table",
+         "placement": "right",
+         "calcs": [
+          "max",
+          "lastNotNull"
+         ]
+        },
+        "tooltip": {
+         "mode": "multi",
+         "sort": "desc"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "color": {
+          "mode": "palette-classic"
+         },
+         "custom": {
+          "drawStyle": "line",
+          "lineWidth": 1,
+          "fillOpacity": 10,
+          "showPoints": "never",
+          "stacking": {
+           "mode": "none"
+          }
+         },
+         "min": 0,
+         "noValue": "No request"
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-2": {
+    "kind": "Panel",
+    "spec": {
+     "id": 2,
+     "title": "Requests per key",
+     "description": "Requests per minute per virtual key.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (api_key_alias) (rate(litellm_proxy_total_requests_metric_total[$__rate_interval])) * 60",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{api_key_alias}}"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "timeseries",
+      "version": "",
+      "spec": {
+       "options": {
+        "legend": {
+         "displayMode": "table",
+         "placement": "right",
+         "calcs": [
+          "max",
+          "lastNotNull"
+         ]
+        },
+        "tooltip": {
+         "mode": "multi",
+         "sort": "desc"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "color": {
+          "mode": "palette-classic"
+         },
+         "custom": {
+          "drawStyle": "line",
+          "lineWidth": 1,
+          "fillOpacity": 10,
+          "showPoints": "never",
+          "stacking": {
+           "mode": "none"
+          }
+         },
+         "min": 0,
+         "noValue": "No request"
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-3": {
+    "kind": "Panel",
+    "spec": {
+     "id": 3,
+     "title": "Keys and models (24 h)",
+     "description": "Requests per virtual key and model over the last 24 hours.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (api_key_alias, requested_model) (increase(litellm_proxy_total_requests_metric_total[1d])) > 0",
+            "format": "table",
+            "instant": true,
+            "range": false
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (api_key_alias, requested_model) (increase(litellm_proxy_failed_requests_metric_total[1d]))",
+            "format": "table",
+            "instant": true,
+            "range": false
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": [
+        {
+         "kind": "organize",
+         "spec": {
+          "id": "organize",
+          "options": {
+           "excludeByName": {
+            "__name__": true
+           }
+          }
+         }
+        },
+        {
+         "kind": "merge",
+         "spec": {
+          "id": "merge",
+          "options": {}
+         }
+        },
+        {
+         "kind": "organize",
+         "spec": {
+          "id": "organize",
+          "options": {
+           "excludeByName": {
+            "Time": true
+           },
+           "renameByName": {
+            "api_key_alias": "Key",
+            "requested_model": "Model",
+            "Value #A": "Requests",
+            "Value #B": "Failed"
+           },
+           "indexByName": {
+            "api_key_alias": 0,
+            "requested_model": 1,
+            "Value #A": 2,
+            "Value #B": 3
+           }
+          }
+         }
+        },
+        {
+         "kind": "filterFieldsByName",
+         "spec": {
+          "id": "filterFieldsByName",
+          "options": {
+           "include": {
+            "names": [
+             "Key",
+             "Model",
+             "Requests",
+             "Failed"
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "table",
+      "version": "",
+      "spec": {
+       "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+         "show": false
+        },
+        "sortBy": [
+         {
+          "displayName": "Requests",
+          "desc": true
+         }
+        ]
+       },
+       "fieldConfig": {
+        "defaults": {
+         "noValue": "-",
+         "custom": {
+          "align": "auto",
+          "filterable": true,
+          "cellOptions": {
+           "type": "auto"
+          }
+         }
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Requests"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 104
+           },
+           {
+            "id": "decimals",
+            "value": 0
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Failed"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 88
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#78C282",
+               "value": null
+              },
+              {
+               "color": "#F4A54D",
+               "value": 1
+              }
+             ]
+            }
+           },
+           {
+            "id": "color",
+            "value": {
+             "mode": "thresholds"
+            }
+           },
+           {
+            "id": "custom.cellOptions",
+            "value": {
+             "type": "color-background",
+             "mode": "basic"
+            }
+           },
+           {
+            "id": "decimals",
+            "value": 0
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Key"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 64
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Model"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 80
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "panel-22": {
+    "kind": "Panel",
+    "spec": {
+     "id": 22,
+     "title": "",
+     "description": "",
+     "links": [],
+     "transparent": true,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "text",
+      "version": "",
+      "spec": {
+       "options": {
+        "mode": "markdown",
+        "content": "[\u00ab](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview \"Overview tab\")&nbsp; [\u2039 Traffic](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=traffic \"Previous tab\") &nbsp;&nbsp; [Workstation](/d/ws-overview) \u203a [02 - AI gateway](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview) \u203a **Errors** &nbsp;&nbsp; [Latency \u203a](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=latency \"Next tab\")<br>Drill-down &nbsp;\u00b7&nbsp; AI gateway &nbsp;\u00b7&nbsp; **LiteLLM**"
+       },
+       "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-4": {
+    "kind": "Panel",
+    "spec": {
+     "id": 4,
+     "title": "Failures",
+     "description": "Failed requests per minute per exception.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (exception_class) (rate(litellm_proxy_failed_requests_metric_total[$__rate_interval])) * 60",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{exception_class}}"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "timeseries",
+      "version": "",
+      "spec": {
+       "options": {
+        "legend": {
+         "displayMode": "table",
+         "placement": "right",
+         "calcs": [
+          "max",
+          "lastNotNull"
+         ]
+        },
+        "tooltip": {
+         "mode": "multi",
+         "sort": "desc"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "color": {
+          "mode": "palette-classic"
+         },
+         "custom": {
+          "drawStyle": "line",
+          "lineWidth": 1,
+          "fillOpacity": 10,
+          "showPoints": "never",
+          "stacking": {
+           "mode": "none"
+          }
+         },
+         "min": 0,
+         "noValue": "No failure"
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-5": {
+    "kind": "Panel",
+    "spec": {
+     "id": 5,
+     "title": "Failures (24 h)",
+     "description": "Failed requests per key, model and exception.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (api_key_alias, requested_model, exception_class) (increase(litellm_proxy_failed_requests_metric_total[1d])) > 0",
+            "format": "table",
+            "instant": true,
+            "range": false
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": [
+        {
+         "kind": "organize",
+         "spec": {
+          "id": "organize",
+          "options": {
+           "excludeByName": {
+            "Time": true
+           },
+           "renameByName": {
+            "api_key_alias": "Key",
+            "requested_model": "Model",
+            "exception_class": "Exception",
+            "Value": "Failed"
+           },
+           "indexByName": {
+            "api_key_alias": 0,
+            "requested_model": 1,
+            "exception_class": 2,
+            "Value": 3
+           }
+          }
+         }
+        },
+        {
+         "kind": "filterFieldsByName",
+         "spec": {
+          "id": "filterFieldsByName",
+          "options": {
+           "include": {
+            "names": [
+             "Key",
+             "Model",
+             "Exception",
+             "Failed"
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "table",
+      "version": "",
+      "spec": {
+       "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+         "show": false
+        },
+        "sortBy": [
+         {
+          "displayName": "Failed",
+          "desc": true
+         }
+        ]
+       },
+       "fieldConfig": {
+        "defaults": {
+         "noValue": "No failure",
+         "custom": {
+          "align": "auto",
+          "filterable": true,
+          "cellOptions": {
+           "type": "auto"
+          }
+         }
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Failed"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 88
+           },
+           {
+            "id": "decimals",
+            "value": 0
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Key"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 64
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Model"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 80
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Exception"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 112
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "panel-23": {
+    "kind": "Panel",
+    "spec": {
+     "id": 23,
+     "title": "",
+     "description": "",
+     "links": [],
+     "transparent": true,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "text",
+      "version": "",
+      "spec": {
+       "options": {
+        "mode": "markdown",
+        "content": "[\u00ab](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview \"Overview tab\")&nbsp; [\u2039 Errors](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=errors \"Previous tab\") &nbsp;&nbsp; [Workstation](/d/ws-overview) \u203a [02 - AI gateway](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview) \u203a **Latency** &nbsp;&nbsp; [Spend \u203a](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=spend \"Next tab\")<br>Drill-down &nbsp;\u00b7&nbsp; AI gateway &nbsp;\u00b7&nbsp; **LiteLLM**"
+       },
+       "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-6": {
+    "kind": "Panel",
+    "spec": {
+     "id": 6,
+     "title": "Latency",
+     "description": "Average per interval.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(rate(litellm_request_total_latency_metric_sum[$__rate_interval])) / sum(rate(litellm_request_total_latency_metric_count[$__rate_interval]))",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "total"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(rate(litellm_llm_api_time_to_first_token_metric_sum[$__rate_interval])) / sum(rate(litellm_llm_api_time_to_first_token_metric_count[$__rate_interval]))",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "first token"
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "C",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum(rate(litellm_overhead_latency_metric_sum[$__rate_interval])) / sum(rate(litellm_overhead_latency_metric_count[$__rate_interval]))",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "gateway overhead"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "timeseries",
+      "version": "",
+      "spec": {
+       "options": {
+        "legend": {
+         "displayMode": "table",
+         "placement": "right",
+         "calcs": [
+          "max",
+          "lastNotNull"
+         ]
+        },
+        "tooltip": {
+         "mode": "multi",
+         "sort": "desc"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "s",
+         "color": {
+          "mode": "palette-classic"
+         },
+         "custom": {
+          "drawStyle": "line",
+          "lineWidth": 1,
+          "fillOpacity": 10,
+          "showPoints": "never",
+          "stacking": {
+           "mode": "none"
+          }
+         },
+         "min": 0,
+         "noValue": "No request"
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-7": {
+    "kind": "Panel",
+    "spec": {
+     "id": 7,
+     "title": "Latency per model",
+     "description": "Average total request time per model.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (model) (rate(litellm_request_total_latency_metric_sum[$__rate_interval])) / sum by (model) (rate(litellm_request_total_latency_metric_count[$__rate_interval]))",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{model}}"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "timeseries",
+      "version": "",
+      "spec": {
+       "options": {
+        "legend": {
+         "displayMode": "table",
+         "placement": "right",
+         "calcs": [
+          "max",
+          "lastNotNull"
+         ]
+        },
+        "tooltip": {
+         "mode": "multi",
+         "sort": "desc"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "s",
+         "color": {
+          "mode": "palette-classic"
+         },
+         "custom": {
+          "drawStyle": "line",
+          "lineWidth": 1,
+          "fillOpacity": 10,
+          "showPoints": "never",
+          "stacking": {
+           "mode": "none"
+          }
+         },
+         "min": 0,
+         "noValue": "No request"
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-24": {
+    "kind": "Panel",
+    "spec": {
+     "id": 24,
+     "title": "",
+     "description": "",
+     "links": [],
+     "transparent": true,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "text",
+      "version": "",
+      "spec": {
+       "options": {
+        "mode": "markdown",
+        "content": "[\u00ab](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview \"Overview tab\")&nbsp; [\u2039 Latency](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=latency \"Previous tab\") &nbsp;&nbsp; [Workstation](/d/ws-overview) \u203a [02 - AI gateway](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview) \u203a **Spend** &nbsp;&nbsp; [Deployments \u203a](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=deployments \"Next tab\")<br>Drill-down &nbsp;\u00b7&nbsp; AI gateway &nbsp;\u00b7&nbsp; **LiteLLM**"
+       },
+       "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-8": {
+    "kind": "Panel",
+    "spec": {
+     "id": 8,
+     "title": "Spend per key",
+     "description": "USD per interval per virtual key.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (api_key_alias) (increase(litellm_spend_metric_total[$__rate_interval]))",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{api_key_alias}}"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "timeseries",
+      "version": "",
+      "spec": {
+       "options": {
+        "legend": {
+         "displayMode": "table",
+         "placement": "right",
+         "calcs": [
+          "sum"
+         ]
+        },
+        "tooltip": {
+         "mode": "multi",
+         "sort": "desc"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "currencyUSD",
+         "color": {
+          "mode": "palette-classic"
+         },
+         "custom": {
+          "drawStyle": "line",
+          "lineWidth": 1,
+          "fillOpacity": 10,
+          "showPoints": "never",
+          "stacking": {
+           "mode": "none"
+          }
+         },
+         "min": 0,
+         "noValue": "Nothing spent"
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-9": {
+    "kind": "Panel",
+    "spec": {
+     "id": 9,
+     "title": "Tokens per model",
+     "description": "Tokens per interval per model.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (model) (increase(litellm_total_tokens_metric_total[$__rate_interval]))",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{model}}"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "timeseries",
+      "version": "",
+      "spec": {
+       "options": {
+        "legend": {
+         "displayMode": "table",
+         "placement": "right",
+         "calcs": [
+          "sum"
+         ]
+        },
+        "tooltip": {
+         "mode": "multi",
+         "sort": "desc"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "unit": "none",
+         "color": {
+          "mode": "palette-classic"
+         },
+         "custom": {
+          "drawStyle": "line",
+          "lineWidth": 1,
+          "fillOpacity": 10,
+          "showPoints": "never",
+          "stacking": {
+           "mode": "none"
+          }
+         },
+         "min": 0,
+         "noValue": "No token"
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-10": {
+    "kind": "Panel",
+    "spec": {
+     "id": 10,
+     "title": "Spend (24 h)",
+     "description": "Spend and tokens per key and model over 24 hours.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (api_key_alias, model) (increase(litellm_spend_metric_total[1d]))",
+            "format": "table",
+            "instant": true,
+            "range": false
+           }
+          }
+         }
+        },
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "B",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "sum by (api_key_alias, model) (increase(litellm_total_tokens_metric_total[1d]))",
+            "format": "table",
+            "instant": true,
+            "range": false
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": [
+        {
+         "kind": "organize",
+         "spec": {
+          "id": "organize",
+          "options": {
+           "excludeByName": {
+            "__name__": true
+           }
+          }
+         }
+        },
+        {
+         "kind": "merge",
+         "spec": {
+          "id": "merge",
+          "options": {}
+         }
+        },
+        {
+         "kind": "organize",
+         "spec": {
+          "id": "organize",
+          "options": {
+           "excludeByName": {
+            "Time": true
+           },
+           "renameByName": {
+            "api_key_alias": "Key",
+            "model": "Model",
+            "Value #A": "Spend",
+            "Value #B": "Tokens"
+           },
+           "indexByName": {
+            "api_key_alias": 0,
+            "model": 1,
+            "Value #A": 2,
+            "Value #B": 3
+           }
+          }
+         }
+        },
+        {
+         "kind": "filterFieldsByName",
+         "spec": {
+          "id": "filterFieldsByName",
+          "options": {
+           "include": {
+            "names": [
+             "Key",
+             "Model",
+             "Spend",
+             "Tokens"
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "table",
+      "version": "",
+      "spec": {
+       "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+         "show": false
+        },
+        "sortBy": [
+         {
+          "displayName": "Spend",
+          "desc": true
+         }
+        ]
+       },
+       "fieldConfig": {
+        "defaults": {
+         "noValue": "-",
+         "custom": {
+          "align": "auto",
+          "filterable": true,
+          "cellOptions": {
+           "type": "auto"
+          }
+         }
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Spend"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 80
+           },
+           {
+            "id": "unit",
+            "value": "currencyUSD"
+           },
+           {
+            "id": "decimals",
+            "value": 2
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Tokens"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 88
+           },
+           {
+            "id": "unit",
+            "value": "short"
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Key"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 64
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Model"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 80
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "panel-25": {
+    "kind": "Panel",
+    "spec": {
+     "id": 25,
+     "title": "",
+     "description": "",
+     "links": [],
+     "transparent": true,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "text",
+      "version": "",
+      "spec": {
+       "options": {
+        "mode": "markdown",
+        "content": "[\u00ab](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview \"Overview tab\")&nbsp; [\u2039 Spend](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=spend \"Previous tab\") &nbsp;&nbsp; [Workstation](/d/ws-overview) \u203a [02 - AI gateway](/d/ws-ai-gateway?${datasource:queryparam}&${__url_time_range}&dtab=overview) \u203a **Deployments**<br>Drill-down &nbsp;\u00b7&nbsp; AI gateway &nbsp;\u00b7&nbsp; **LiteLLM**"
+       },
+       "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-11": {
+    "kind": "Panel",
+    "spec": {
+     "id": 11,
+     "title": "Deployments over time",
+     "description": "State of every deployment.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "max by (litellm_model_name, api_provider, api_base) (litellm_deployment_state)",
+            "format": "time_series",
+            "instant": false,
+            "range": true,
+            "legendFormat": "{{litellm_model_name}} ({{api_provider}})"
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": []
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "state-timeline",
+      "version": "",
+      "spec": {
+       "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.8,
+        "legend": {
+         "showLegend": false
+        },
+        "tooltip": {
+         "mode": "single"
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "color": {
+          "mode": "thresholds"
+         },
+         "thresholds": {
+          "mode": "absolute",
+          "steps": [
+           {
+            "color": "#868A8E",
+            "value": null
+           },
+           {
+            "color": "#78C282",
+            "value": 0
+           },
+           {
+            "color": "#F4A54D",
+            "value": 1
+           },
+           {
+            "color": "#EC6A73",
+            "value": 2
+           }
+          ]
+         },
+         "mappings": [
+          {
+           "type": "value",
+           "options": {
+            "0": {
+             "text": "healthy",
+             "color": "#78C282",
+             "index": 0
+            },
+            "1": {
+             "text": "partial outage",
+             "color": "#F4A54D",
+             "index": 1
+            },
+            "2": {
+             "text": "outage",
+             "color": "#EC6A73",
+             "index": 2
+            }
+           }
+          }
+         ],
+         "custom": {
+          "fillOpacity": 80,
+          "lineWidth": 0
+         }
+        },
+        "overrides": []
+       }
+      }
+     }
+    }
+   },
+   "panel-12": {
+    "kind": "Panel",
+    "spec": {
+     "id": 12,
+     "title": "Deployments",
+     "description": "Every deployment now.",
+     "links": [],
+     "transparent": false,
+     "data": {
+      "kind": "QueryGroup",
+      "spec": {
+       "queries": [
+        {
+         "kind": "PanelQuery",
+         "spec": {
+          "refId": "A",
+          "hidden": false,
+          "query": {
+           "kind": "DataQuery",
+           "group": "prometheus",
+           "version": "v0",
+           "datasource": {
+            "name": "${datasource}"
+           },
+           "spec": {
+            "expr": "max by (litellm_model_name, api_provider, api_base) (litellm_deployment_state)",
+            "format": "table",
+            "instant": true,
+            "range": false
+           }
+          }
+         }
+        }
+       ],
+       "queryOptions": {},
+       "transformations": [
+        {
+         "kind": "organize",
+         "spec": {
+          "id": "organize",
+          "options": {
+           "excludeByName": {
+            "Time": true
+           },
+           "renameByName": {
+            "litellm_model_name": "Model",
+            "api_provider": "Provider",
+            "api_base": "Endpoint",
+            "Value": "State"
+           },
+           "indexByName": {
+            "litellm_model_name": 0,
+            "api_provider": 1,
+            "api_base": 2,
+            "Value": 3
+           }
+          }
+         }
+        },
+        {
+         "kind": "filterFieldsByName",
+         "spec": {
+          "id": "filterFieldsByName",
+          "options": {
+           "include": {
+            "names": [
+             "Model",
+             "Provider",
+             "Endpoint",
+             "State"
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     "vizConfig": {
+      "kind": "VizConfig",
+      "group": "table",
+      "version": "",
+      "spec": {
+       "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+         "show": false
+        }
+       },
+       "fieldConfig": {
+        "defaults": {
+         "noValue": "-",
+         "custom": {
+          "align": "auto",
+          "filterable": true,
+          "cellOptions": {
+           "type": "auto"
+          }
+         }
+        },
+        "overrides": [
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Model"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 80
+           },
+           {
+            "id": "custom.width",
+            "value": 144
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "State"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 80
+           },
+           {
+            "id": "thresholds",
+            "value": {
+             "mode": "absolute",
+             "steps": [
+              {
+               "color": "#868A8E",
+               "value": null
+              },
+              {
+               "color": "#78C282",
+               "value": 0
+              },
+              {
+               "color": "#F4A54D",
+               "value": 1
+              },
+              {
+               "color": "#EC6A73",
+               "value": 2
+              }
+             ]
+            }
+           },
+           {
+            "id": "color",
+            "value": {
+             "mode": "thresholds"
+            }
+           },
+           {
+            "id": "custom.cellOptions",
+            "value": {
+             "type": "color-background",
+             "mode": "basic"
+            }
+           },
+           {
+            "id": "mappings",
+            "value": [
+             {
+              "type": "value",
+              "options": {
+               "0": {
+                "text": "healthy",
+                "color": "#78C282",
+                "index": 0
+               },
+               "1": {
+                "text": "partial outage",
+                "color": "#F4A54D",
+                "index": 1
+               },
+               "2": {
+                "text": "outage",
+                "color": "#EC6A73",
+                "index": 2
+               }
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Endpoint"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 104
+           },
+           {
+            "id": "custom.width",
+            "value": 608
+           },
+           {
+            "id": "custom.cellOptions",
+            "value": {
+             "type": "auto",
+             "wrapText": true
+            }
+           }
+          ]
+         },
+         {
+          "matcher": {
+           "id": "byName",
+           "options": "Provider"
+          },
+          "properties": [
+           {
+            "id": "custom.minWidth",
+            "value": 104
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "layout": {
+   "kind": "TabsLayout",
+   "spec": {
+    "tabs": [
+     {
+      "kind": "TabsLayoutTab",
+      "spec": {
+       "title": "Overview",
+       "layout": {
+        "kind": "GridLayout",
+        "spec": {
+         "items": [
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 2,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-20"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 2,
+            "width": 4,
+            "height": 15,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-13"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 4,
+            "y": 2,
+            "width": 20,
+            "height": 3,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-14"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 4,
+            "y": 5,
+            "width": 20,
+            "height": 3,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-15"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 4,
+            "y": 8,
+            "width": 20,
+            "height": 3,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-16"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 4,
+            "y": 11,
+            "width": 20,
+            "height": 3,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-17"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 4,
+            "y": 14,
+            "width": 20,
+            "height": 3,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-18"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 17,
+            "width": 24,
+            "height": 8,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-19"
+            }
+           }
+          }
+         ]
+        }
+       }
+      }
+     },
+     {
+      "kind": "TabsLayoutTab",
+      "spec": {
+       "title": "Traffic",
+       "layout": {
+        "kind": "GridLayout",
+        "spec": {
+         "items": [
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 2,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-21"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 8,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-1"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 12,
+            "y": 2,
+            "width": 12,
+            "height": 8,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-2"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 10,
+            "width": 24,
+            "height": 12,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-3"
+            }
+           }
+          }
+         ]
+        }
+       }
+      }
+     },
+     {
+      "kind": "TabsLayoutTab",
+      "spec": {
+       "title": "Errors",
+       "layout": {
+        "kind": "GridLayout",
+        "spec": {
+         "items": [
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 2,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-22"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 2,
+            "width": 24,
+            "height": 8,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-4"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 10,
+            "width": 24,
+            "height": 12,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-5"
+            }
+           }
+          }
+         ]
+        }
+       }
+      }
+     },
+     {
+      "kind": "TabsLayoutTab",
+      "spec": {
+       "title": "Latency",
+       "layout": {
+        "kind": "GridLayout",
+        "spec": {
+         "items": [
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 2,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-23"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 2,
+            "width": 24,
+            "height": 8,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-6"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 10,
+            "width": 24,
+            "height": 8,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-7"
+            }
+           }
+          }
+         ]
+        }
+       }
+      }
+     },
+     {
+      "kind": "TabsLayoutTab",
+      "spec": {
+       "title": "Spend",
+       "layout": {
+        "kind": "GridLayout",
+        "spec": {
+         "items": [
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 2,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-24"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 8,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-8"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 12,
+            "y": 2,
+            "width": 12,
+            "height": 8,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-9"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 10,
+            "width": 24,
+            "height": 12,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-10"
+            }
+           }
+          }
+         ]
+        }
+       }
+      }
+     },
+     {
+      "kind": "TabsLayoutTab",
+      "spec": {
+       "title": "Deployments",
+       "layout": {
+        "kind": "GridLayout",
+        "spec": {
+         "items": [
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 2,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-25"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 2,
+            "width": 24,
+            "height": 6,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-11"
+            }
+           }
+          },
+          {
+           "kind": "GridLayoutItem",
+           "spec": {
+            "x": 0,
+            "y": 8,
+            "width": 24,
+            "height": 14,
+            "element": {
+             "kind": "ElementReference",
+             "name": "panel-12"
+            }
+           }
+          }
+         ]
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+}
