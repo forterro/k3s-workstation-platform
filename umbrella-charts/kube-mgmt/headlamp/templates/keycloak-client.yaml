@@ -1,0 +1,27 @@
+{{- if .Values.sso.enabled }}
+# Public client with PKCE: no client secret. Its ID token is the user's Kubernetes credential.
+apiVersion: v1.edp.epam.com/v1
+kind: KeycloakClient
+metadata:
+  name: {{ .Values.sso.clientId }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  realmRef:
+    kind: ClusterKeycloakRealm
+    name: {{ .Values.sso.realm }}
+  clientId: {{ .Values.sso.clientId }}
+  name: Headlamp
+  public: true
+  standardFlowEnabled: true
+  directAccess: false
+  webUrl: {{ .Values.sso.url }}
+  redirectUris:
+    - {{ .Values.sso.url }}/oidc-callback
+  webOrigins:
+    - {{ .Values.sso.url }}
+  attributes:
+    pkce.code.challenge.method: S256
+    post.logout.redirect.uris: {{ .Values.sso.url }}/*
+  defaultClientScopes: [web-origins, acr, basic, profile, email, roles, groups]
+{{- end }}

@@ -84,7 +84,7 @@ def test_sso_service_is_opt_in() -> None:
 
 
 def test_sso_consumers_read_their_sso_values_only_when_sso_is_enabled() -> None:
-    consumers = {"argocd", "kube-prometheus-stack"}
+    consumers = {"argocd", "headlamp", "kube-prometheus-stack"}
     standalone = render("--set", "sso.enabled=true")
     for name, app in standalone.items():
         helm = app["spec"]["source"].get("helm")

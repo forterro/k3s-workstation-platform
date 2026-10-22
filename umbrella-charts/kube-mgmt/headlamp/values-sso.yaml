@@ -1,0 +1,25 @@
+# Added by the platform chart when sso.enabled: Headlamp sign-in through the workstation Keycloak.
+# The Kubernetes rights come from the API server (members of workstation-admins are cluster-admin).
+sso:
+  enabled: true
+
+headlamp:
+  config:
+    oidc:
+      clientID: headlamp
+      issuerURL: https://sso.workstation.internal/realms/workstation
+      scopes: openid,profile,email,groups
+      callbackURL: https://headlamp.workstation.internal/oidc-callback
+      usePKCE: true
+  # The SSO certificate is signed by the workstation CA (trust-manager bundle).
+  env:
+    - name: SSL_CERT_FILE
+      value: /etc/workstation-ca/ca-certificates.crt
+  volumes:
+    - name: workstation-ca
+      configMap:
+        name: workstation-ca
+  volumeMounts:
+    - name: workstation-ca
+      mountPath: /etc/workstation-ca
+      readOnly: true

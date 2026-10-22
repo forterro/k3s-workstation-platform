@@ -76,6 +76,7 @@ apps:
   - name: headlamp
     namespace: headlamp
     path: umbrella-charts/kube-mgmt/headlamp
+    ssoValues: values-sso.yaml
   - name: kube-prometheus-stack
     namespace: observability
     path: umbrella-charts/observability/kube-prometheus-stack

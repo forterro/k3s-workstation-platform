@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import base64
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 import yaml
+
+from workstation_bootstrap import phases
 
 CHARTS = Path(__file__).resolve().parents[1] / "umbrella-charts"
 CA = "/etc/workstation-ca/ca-certificates.crt"
@@ -17,7 +20,7 @@ pytestmark = pytest.mark.skipif(shutil.which("helm") is None, reason="helm not i
 
 def render(release: str, chart: str, sso: bool) -> dict[tuple[str, str], dict]:
     args = ["helm", "template", release, str(CHARTS / chart), "--namespace", release]
-    if sso:
+    if sso and (CHARTS / chart / "values-sso.yaml").exists():
         args += ["-f", str(CHARTS / chart / "values-sso.yaml")]
     out = subprocess.run(args, check=True, capture_output=True, text=True).stdout
     return {(d["kind"], d["metadata"]["name"]): d for d in yaml.safe_load_all(out) if d}
@@ -67,3 +70,26 @@ def test_grafana_uses_the_operator_generated_secret_and_trusts_the_workstation_c
         "name": "keycloak-client-grafana-secret",
         "key": "clientSecret",
     }
+
+
+def test_headlamp_signs_in_with_a_public_pkce_client_and_trusts_the_workstation_ca() -> None:
+    objs = render("headlamp", "kube-mgmt/headlamp", sso=True)
+    client = objs[("KeycloakClient", "headlamp")]["spec"]
+    assert client["public"] is True
+    assert client["redirectUris"] == ["https://headlamp.workstation.internal/oidc-callback"]
+    oidc = {k: base64.b64decode(v).decode() for k, v in objs[("Secret", "oidc")]["data"].items()}
+    assert oidc["usePKCE"] == "true" and "clientSecret" not in oidc
+    pod = objs[("Deployment", "headlamp")]["spec"]["template"]["spec"]
+    assert {"name": "SSL_CERT_FILE", "value": CA} in pod["containers"][0]["env"]
+
+
+def test_kubernetes_api_audiences_and_prefix_match_the_clients_and_the_admin_binding() -> None:
+    keycloak = render("keycloak", "identity/keycloak", sso=False)
+    headlamp = render("headlamp", "kube-mgmt/headlamp", sso=True)
+    clients = {
+        k[1] for objs in (keycloak, headlamp) for k in objs if k[0] == "KeycloakClient"
+    } & set(phases._SSO_API_AUDIENCES)
+    assert clients == set(phases._SSO_API_AUDIENCES)
+    binding = keycloak[("ClusterRoleBinding", "sso-workstation-admins-cluster-admin")]
+    assert binding["roleRef"]["name"] == "cluster-admin"
+    assert binding["subjects"][0]["name"] == f"{phases._SSO_CLAIM_PREFIX}workstation-admins"

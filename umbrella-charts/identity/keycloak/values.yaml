@@ -13,6 +13,12 @@ realm: workstation
 # Members of this group administer every SSO-enabled tool (Argo CD admin, Grafana admin...).
 adminGroup: workstation-admins
 
+# The Kubernetes API trusts the realm (bootstrap phase `api-oidc`, prefix `oidc:` on users and
+# groups). The admin group is cluster-admin; `kubectlClientId` is the public client of kubelogin.
+kubernetesApi:
+  kubectlClientId: kubernetes
+  claimPrefix: "oidc:"
+
 # Local users, created once (the operator never resets them afterwards). Each one gets a generated
 # initial password in the Secret keycloak-user-<username> (key `password`) and must change it at
 # the first sign-in. Example:

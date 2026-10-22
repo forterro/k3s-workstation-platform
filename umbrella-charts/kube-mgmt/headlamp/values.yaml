@@ -13,3 +13,12 @@ ingressRoute:
   service:
     name: headlamp
     port: 80
+
+# Sign-in through the workstation Keycloak, switched on by the platform chart with values-sso.yaml.
+# Headlamp passes the user's token to the Kubernetes API, which trusts the realm when the bootstrap
+# `api-oidc` phase has configured it. Renders the KeycloakClient of Headlamp.
+sso:
+  enabled: false
+  realm: workstation
+  clientId: headlamp
+  url: https://headlamp.workstation.internal

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from workstation_bootstrap import phases
 
@@ -61,7 +62,6 @@ def test_phase_grafana_admin_secret_applies_namespace_and_secret(monkeypatch, tm
     assert any("--from-literal=admin-user=admin" in c for c in joined)
     assert any("--from-literal=admin-password=s3cr3t-pw" in c for c in joined)
     assert any("--namespace observability" in c for c in joined)
-
 
 
 def test_clusterissuer_manifest_embeds_root_ca_bundle(tmp_path):
@@ -414,15 +414,22 @@ def test_ensure_node_ca_env_is_noop_when_current(monkeypatch, tmp_path):
     phases._ensure_node_ca_env()
 
 
-
 def test_phase_extra_root_apps_seeds_credentials_only_for_private_layers(monkeypatch, tmp_path):
     config = {
         "config_repo_url": "https://gitlab.example/og/config.git",
         "extra_root_apps": [
-            {"name": "1-root-public", "repo_url": "https://github.com/o/public.git",
-             "path": "layer"},
-            {"name": "2-root-private", "project": "p", "repo_url": "https://gitlab.example/og/private.git",
-             "path": "layer", "private": True},
+            {
+                "name": "1-root-public",
+                "repo_url": "https://github.com/o/public.git",
+                "path": "layer",
+            },
+            {
+                "name": "2-root-private",
+                "project": "p",
+                "repo_url": "https://gitlab.example/og/private.git",
+                "path": "layer",
+                "private": True,
+            },
         ],
     }
     monkeypatch.setattr(phases.settings, "load_or_init_config", lambda root: config)
@@ -481,3 +488,76 @@ def test_phase_root_app_upgrades_every_run_after_seeding_the_credential(monkeypa
     phases._phase_root_app(phases.Context(root=tmp_path, dry_run=False))
 
     assert calls == ["credential", "install root-app"]
+
+
+def _api_oidc_env(monkeypatch, tmp_path, *, sso: bool):
+    ca = tmp_path / "ca"
+    ca.mkdir()
+    (ca / "root_ca.crt").write_text(
+        "-----BEGIN CERTIFICATE-----\nROOT\n-----END CERTIFICATE-----\n"
+    )
+    monkeypatch.setattr(phases.settings, "ca_dir", lambda: ca)
+    monkeypatch.setattr(phases.settings, "sso_enabled", lambda: sso)
+    monkeypatch.setattr(phases, "_K3S_SSO_DROPIN", tmp_path / "k3s" / "config.yaml.d" / "50.yaml")
+    monkeypatch.setattr(phases, "_K3S_AUTHN_CONFIG", tmp_path / "k3s" / "authn.yaml")
+
+    def write(path, content):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+
+    def run(cmd, **_):
+        if "rm" in cmd:
+            for p in cmd[cmd.index("-f") + 1 :]:
+                Path(p).unlink(missing_ok=True)
+
+    restarts = []
+    monkeypatch.setattr(phases, "_sudo_write", write)
+    monkeypatch.setattr(phases.command, "run", run)
+    monkeypatch.setattr(phases.k3s, "restart", lambda: restarts.append(1))
+    return restarts
+
+
+def test_api_oidc_trusts_the_realm_and_restarts_k3s_only_once(monkeypatch, tmp_path):
+    restarts = _api_oidc_env(monkeypatch, tmp_path, sso=True)
+    context = phases.Context(root=tmp_path, dry_run=False)
+
+    phases._phase_api_oidc(context)
+    authn = yaml.safe_load(phases._K3S_AUTHN_CONFIG.read_text())
+    jwt = authn["jwt"][0]
+    assert jwt["issuer"]["url"] == "https://sso.workstation.internal/realms/workstation"
+    assert "ROOT" in jwt["issuer"]["certificateAuthority"]
+    assert jwt["claimMappings"]["groups"] == {"claim": "groups", "prefix": "oidc:"}
+    assert f"authentication-config={phases._K3S_AUTHN_CONFIG}" in phases._K3S_SSO_DROPIN.read_text()
+    assert restarts == [1]
+
+    phases._phase_api_oidc(context)  # unchanged: no restart
+    assert restarts == [1]
+
+
+def test_api_oidc_removes_the_trust_when_sso_is_disabled(monkeypatch, tmp_path):
+    restarts = _api_oidc_env(monkeypatch, tmp_path, sso=True)
+    context = phases.Context(root=tmp_path, dry_run=False)
+    phases._phase_api_oidc(context)
+
+    monkeypatch.setattr(phases.settings, "sso_enabled", lambda: False)
+    phases._phase_api_oidc(context)
+    assert not phases._K3S_SSO_DROPIN.exists() and not phases._K3S_AUTHN_CONFIG.exists()
+    assert restarts == [1, 1]
+    phases._phase_api_oidc(context)  # nothing left to remove
+    assert restarts == [1, 1]
+
+
+def test_api_oidc_rolls_back_when_k3s_does_not_come_back(monkeypatch, tmp_path):
+    _api_oidc_env(monkeypatch, tmp_path, sso=True)
+    attempts = []
+
+    def restart():
+        attempts.append(phases._K3S_SSO_DROPIN.exists())
+        if phases._K3S_SSO_DROPIN.exists():
+            raise phases.command.CommandError("k3s API did not become ready in time")
+
+    monkeypatch.setattr(phases.k3s, "restart", restart)
+    with pytest.raises(phases.PhaseError, match="rolled back"):
+        phases._phase_api_oidc(phases.Context(root=tmp_path, dry_run=False))
+    assert attempts == [True, False]  # failed with the drop-in, restarted without it
+    assert not phases._K3S_SSO_DROPIN.exists()
