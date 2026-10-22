@@ -1,0 +1,16 @@
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: {{ .Values.bundle.name }}
+  annotations:
+    # The CRD and the validating webhook come with this chart.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  sources:
+    - useDefaultCAs: true
+    - configMap:
+        name: step-ca-certs
+        key: root_ca.crt
+  target:
+    configMap:
+      key: {{ .Values.bundle.key }}

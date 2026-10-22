@@ -47,6 +47,7 @@ def test_standalone_renders_every_base_component_without_overlay() -> None:
         "alloy",
         "step-ca",
         "workstation-dashboards",
+        "trust-manager",
     }
     for app in apps.values():
         assert app["spec"]["source"]["targetRevision"] == "main"

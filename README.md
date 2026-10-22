@@ -165,6 +165,10 @@ identical.
 - The bootstrap also installs the root CA into the host trust store
   (`/usr/local/share/ca-certificates`), so host clients validate `*.workstation.internal` certs
   without extra flags.
+- Pods get it too: trust-manager publishes the ConfigMap `workstation-ca` (key
+  `ca-certificates.crt`: the public CAs plus the workstation root) in every namespace. A workload
+  that calls `https://*.workstation.internal` mounts it and points `SSL_CERT_FILE` (Go, Rust,
+  Python) or its own CA option at it.
 - Rotate the CA with `FORCE=1 make generate-ca`.
 
 ## Extra layers

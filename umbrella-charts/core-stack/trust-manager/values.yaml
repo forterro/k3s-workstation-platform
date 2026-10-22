@@ -1,0 +1,12 @@
+trust-manager:
+  app:
+    trust:
+      # Bundle sources are read from the namespace holding the step-ca root (created by the bootstrap).
+      namespace: step-ca
+
+# ConfigMap published in every namespace (key `ca-certificates.crt`): the public CAs plus the
+# workstation root, so a pod calling https://*.workstation.internal can mount it and point
+# SSL_CERT_FILE (Go, Rust, Python requests) or its own CA setting at it.
+bundle:
+  name: workstation-ca
+  key: ca-certificates.crt
