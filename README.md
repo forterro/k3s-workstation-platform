@@ -261,7 +261,9 @@ in its chart's `values-sso.yaml`, added by the platform chart only when `sso.ena
 
 The Kubernetes API accepts the realm's tokens (bootstrap phase `api-oidc`; users and groups are
 prefixed `oidc:`) and `oidc:workstation-admins` is `cluster-admin`. `kubectl` signs in with
-[kubelogin](https://github.com/int128/kubelogin) through the public client `kubernetes`:
+[kubelogin](https://github.com/int128/kubelogin) through the public client `kubernetes`. The bootstrap
+does not install the plugin (`kubectl-oidc_login`): take it from the kubelogin releases, or
+`kubectl krew install oidc-login`, or `brew install int128/kubelogin/kubelogin`.
 
 ```bash
 kubectl config set-credentials sso --exec-api-version=client.authentication.k8s.io/v1 \
@@ -466,10 +468,9 @@ make format    # ruff format
 make test      # pytest
 ```
 
+The CI (`.github/workflows/ci.yml`) runs the same lint and tests and `helm lint` on every push and pull
+request; Renovate (`.github/workflows/renovate.yml`) proposes the updates.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
-
-## Roadmap
-
-- CI workflows (gitflow, quality gates, changelog gate) land in a dedicated increment.
