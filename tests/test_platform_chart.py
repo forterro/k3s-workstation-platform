@@ -81,3 +81,21 @@ def test_sso_service_is_opt_in() -> None:
     keycloak = render("--set", "sso.enabled=true")["keycloak"]
     assert keycloak["spec"]["destination"]["namespace"] == "keycloak"
     assert keycloak["spec"]["source"]["path"] == "umbrella-charts/identity/keycloak"
+
+
+def test_sso_consumers_read_their_sso_values_only_when_sso_is_enabled() -> None:
+    consumers = {"argocd", "kube-prometheus-stack"}
+    standalone = render("--set", "sso.enabled=true")
+    for name, app in standalone.items():
+        helm = app["spec"]["source"].get("helm")
+        assert (helm == {"valueFiles": ["values-sso.yaml"]}) == (name in consumers)
+    assert all("helm" not in app["spec"]["source"] for app in render().values())
+
+    overlaid = render(
+        "--set", "sso.enabled=true", "--set", "configRepoURL=https://git.example/c.git"
+    )
+    # The config repo overlay comes last: it can override the SSO settings.
+    assert overlaid["argocd"]["spec"]["sources"][0]["helm"]["valueFiles"] == [
+        "values-sso.yaml",
+        "$values/values/argocd.yaml",
+    ]
