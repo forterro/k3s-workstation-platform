@@ -42,3 +42,10 @@ def test_database_cluster_syncs_before_the_job_waiting_for_its_secret() -> None:
     assert secrets == {"keycloak-pg-postgresql-account-postgres"}
     # ArgoCD waits for a wave to be healthy before the next one: the Job must not come first.
     assert wave(cluster) < wave(job)
+
+
+def test_admins_manage_the_workstation_realm_with_their_own_account() -> None:
+    objs = render()
+    group = objs[("KeycloakRealmGroup", "workstation-workstation-admins")]["spec"]
+    assert group["name"] == "workstation-admins"
+    assert {"clientId": "realm-management", "roles": ["realm-admin"]} in group["clientRoles"]
