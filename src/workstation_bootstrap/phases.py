@@ -766,7 +766,7 @@ def _apply_seed_chart(
     set_values: list[str] | None = None,
 ) -> None:
     # Seed charts are installed from their single source of truth under umbrella-charts/, the same
-    # charts ArgoCD adopts and reconciles afterwards via the apps/ manifests.
+    # charts ArgoCD adopts and reconciles afterwards (platform chart child Applications).
     chart = context.root / "umbrella-charts" / group / brick
     if not chart.exists():
         raise PhaseError(f"seed chart not found: {chart}")

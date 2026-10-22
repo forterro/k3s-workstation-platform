@@ -25,7 +25,7 @@ flowchart LR
   seed --> cm[cert-manager]
   seed --> mlb[MetalLB]
   seed --> argo[ArgoCD]
-  argo -->|app-of-apps| apps[apps/*]
+  argo -->|app-of-apps| apps[platform chart]
   apps --> charts[umbrella-charts/*]
 ```
 
@@ -359,7 +359,6 @@ src/workstation_bootstrap/   # imperative seed generator
 bootstrap/helm/root-app/     # ArgoCD app-of-apps entrypoint (the only seed-only chart)
 bootstrap/helm/platform/     # base Applications (one per component), with config repo overlays
 umbrella-charts/             # single source of truth: every workload chart (seed-installed + GitOps)
-apps/                        # legacy child Applications (root app before 0.2.0), removed next
 secrets/                     # SOPS-encrypted secrets rendered by the KSOPS plugin
 scripts/                     # operational scripts (CA generation)
 config/                      # optional local value overrides

@@ -31,12 +31,31 @@ def _normalize(app: dict) -> dict:
     return app
 
 
-def test_standalone_matches_the_legacy_apps_directory() -> None:
-    legacy = {}
-    for f in (ROOT / "apps").glob("*.yaml"):
-        doc = _normalize(yaml.safe_load(f.read_text(encoding="utf-8")))
-        legacy[doc["metadata"]["name"]] = doc
-    assert render() == legacy
+def test_standalone_renders_every_base_component_without_overlay() -> None:
+    apps = render()
+    assert set(apps) == {
+        "prometheus-operator-crds",
+        "cert-manager",
+        "metallb",
+        "kubeblocks",
+        "workstation-dns",
+        "traefik",
+        "argocd",
+        "headlamp",
+        "kube-prometheus-stack",
+        "loki",
+        "alloy",
+        "step-ca",
+        "workstation-dashboards",
+    }
+    for app in apps.values():
+        assert app["spec"]["source"]["targetRevision"] == "main"
+        assert "finalizers" not in app["metadata"]  # a pruned app must never delete its workloads
+    assert apps["kubeblocks"]["metadata"]["annotations"] == {
+        "argocd.argoproj.io/sync-wave": "-1",
+        "argocd.argoproj.io/compare-options": "ServerSideDiff=true",
+    }
+    assert apps["argocd"]["spec"]["syncPolicy"]["syncOptions"] == ["ServerSideApply=true"]
 
 
 def test_config_repo_adds_an_optional_overlay_per_app() -> None:
