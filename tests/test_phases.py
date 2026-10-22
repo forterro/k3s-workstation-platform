@@ -457,3 +457,27 @@ def test_ensure_repo_credential_publishes_host_credential(monkeypatch):
 
     assert "name: repo-x" in applied[0] and "secret-type: repository" in applied[0]
     assert '"https://gitlab.example/og/private.git"' in applied[0] and '"tok-123"' in applied[0]
+
+
+def test_phase_root_app_upgrades_every_run_after_seeding_the_credential(monkeypatch, tmp_path):
+    (tmp_path / "bootstrap" / "helm" / "root-app").mkdir(parents=True)
+    config = {"config_repo_url": "https://git.example/cfg.git"}
+    calls: list[str] = []
+    monkeypatch.setattr(phases.settings, "load_or_init_config", lambda root: config)
+    values = tmp_path / "values.yaml"
+    monkeypatch.setattr(phases.settings, "render_root_app_values", lambda cfg: values)
+    monkeypatch.setattr(phases, "_kubectl_env", lambda: {})
+    monkeypatch.setattr(
+        phases, "_ensure_config_repo_credential", lambda cfg, env: calls.append("credential")
+    )
+    monkeypatch.setattr(phases.helm, "release_exists", lambda release, namespace: True)
+    monkeypatch.setattr(phases.helm, "update_dependencies", lambda c: None)
+    monkeypatch.setattr(
+        phases.helm,
+        "install",
+        lambda c, release, namespace, values: calls.append(f"install {release}"),
+    )
+
+    phases._phase_root_app(phases.Context(root=tmp_path, dry_run=False))
+
+    assert calls == ["credential", "install root-app"]

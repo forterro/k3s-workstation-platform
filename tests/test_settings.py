@@ -51,6 +51,17 @@ def test_render_root_app_values(monkeypatch, tmp_path):
     rendered = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert rendered["rootApp"]["repoURL"] == "https://example.com/fork.git"
     assert rendered["rootApp"]["targetRevision"] == "dev"
+    assert rendered["configRepoURL"] == ""
+
+
+def test_render_root_app_values_passes_the_config_repo(monkeypatch, tmp_path):
+    _redirect_config(monkeypatch, tmp_path)
+    config = {"config_repo_url": "https://git.example/cfg.git", "config_repo_revision": "dev"}
+
+    rendered = yaml.safe_load(settings.render_root_app_values(config).read_text(encoding="utf-8"))
+
+    assert rendered["configRepoURL"] == "https://git.example/cfg.git"
+    assert rendered["configRepoRevision"] == "dev"
 
 
 def test_ensure_loadbalancer_ip_reuses_existing(monkeypatch, tmp_path):

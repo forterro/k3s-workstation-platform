@@ -10,12 +10,33 @@ metadata:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: workstation
+  {{- if $.Values.configRepoURL }}
+  sources:
+    - repoURL: {{ .repoURL | quote }}
+      targetRevision: {{ .targetRevision | quote }}
+      path: {{ .path | quote }}
+      helm:
+        valueFiles:
+          - $values/values/platform.yaml
+        ignoreMissingValueFiles: true
+        valuesObject:
+          repoURL: {{ .repoURL | quote }}
+          targetRevision: {{ .targetRevision | quote }}
+          configRepoURL: {{ $.Values.configRepoURL | quote }}
+          configRepoRevision: {{ $.Values.configRepoRevision | quote }}
+    - repoURL: {{ $.Values.configRepoURL | quote }}
+      targetRevision: {{ $.Values.configRepoRevision | quote }}
+      ref: values
+  {{- else }}
   source:
     repoURL: {{ .repoURL | quote }}
     targetRevision: {{ .targetRevision | quote }}
     path: {{ .path | quote }}
-    directory:
-      recurse: true
+    helm:
+      valuesObject:
+        repoURL: {{ .repoURL | quote }}
+        targetRevision: {{ .targetRevision | quote }}
+  {{- end }}
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ $.Release.Namespace }}

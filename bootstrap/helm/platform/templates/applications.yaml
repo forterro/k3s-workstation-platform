@@ -1,0 +1,55 @@
+{{- $root := . -}}
+{{- range .Values.apps }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: {{ $root.Release.Namespace }}
+  {{- if or .wave .compareOptions }}
+  annotations:
+    {{- with .wave }}
+    argocd.argoproj.io/sync-wave: {{ . | quote }}
+    {{- end }}
+    {{- with .compareOptions }}
+    argocd.argoproj.io/compare-options: {{ . }}
+    {{- end }}
+  {{- end }}
+spec:
+  project: {{ $root.Values.project | quote }}
+  {{- if $root.Values.configRepoURL }}
+  sources:
+    - repoURL: {{ $root.Values.repoURL | quote }}
+      targetRevision: {{ $root.Values.targetRevision | quote }}
+      path: {{ .path | quote }}
+      helm:
+        valueFiles:
+          - $values/values/{{ .name }}.yaml
+        ignoreMissingValueFiles: true
+    - repoURL: {{ $root.Values.configRepoURL | quote }}
+      targetRevision: {{ $root.Values.configRepoRevision | quote }}
+      ref: values
+  {{- else }}
+  source:
+    repoURL: {{ $root.Values.repoURL | quote }}
+    targetRevision: {{ $root.Values.targetRevision | quote }}
+    path: {{ .path | quote }}
+  {{- end }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .namespace | quote }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    {{- with .retry }}
+    retry:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    syncOptions:
+      {{- toYaml (.syncOptions | default $root.Values.syncOptions) | nindent 6 }}
+  {{- with .ignoreDifferences }}
+  ignoreDifferences:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
