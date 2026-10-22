@@ -23,6 +23,9 @@ workstation-config/
   .sops.yaml             # SOPS/age encryption policy for secrets/
   .gitignore             # excludes the local-only root of trust
   values/                # per-workstation Helm value overlays (values/<app>.yaml)
+    platform.yaml        # platform switches: sso, matrix
+    keycloak.yaml        # SSO users (with sso.enabled)
+    matrix.yaml          # Matrix appservice consumers (with matrix.enabled)
     ollama.yaml
     vllm.yaml
     litellm.yaml
@@ -120,6 +123,36 @@ Each layer app reads an optional `values/<app>.yaml` overlay from this repo. Thi
 serving engines, pin models, and override chart defaults per machine. The AI layer overlays
 (`ollama.yaml`, `vllm.yaml`, `litellm.yaml`) are documented in the AI serving layer repo, under
 `docs/private-config-repo.md`.
+
+The shared services of the base platform are switched on here too (see
+[Opt-in shared services](../README.md#opt-in-shared-services)):
+
+```yaml
+# values/platform.yaml
+sso:
+  enabled: true      # Keycloak, realm "workstation"; Argo CD, Grafana, Headlamp and kubectl sign in through it
+matrix:
+  enabled: true      # Tuwunel + Element, sign-in through the SSO (needs sso.enabled)
+```
+
+```yaml
+# values/keycloak.yaml: local users of the realm, created once with a generated password
+users:
+  - username: jdoe
+    email: jdoe@example.com
+    firstName: Jane
+    admin: true      # member of workstation-admins
+```
+
+```yaml
+# values/matrix.yaml: bots allowed to register as appservices (one entry per consumer)
+appservices:
+  - name: agent-harness
+    namespace: agent-harness
+    serviceAccount: agent-harness
+```
+
+With `sso.enabled`, run the bootstrap again so the Kubernetes API trusts the realm (phase `api-oidc`).
 
 ### 7. Add encrypted secrets under `secrets/`
 
