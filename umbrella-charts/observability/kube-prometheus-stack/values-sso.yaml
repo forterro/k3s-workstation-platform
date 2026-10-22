@@ -1,0 +1,37 @@
+# Added by the platform chart when sso.enabled: Grafana sign-in through the workstation Keycloak.
+# workstation-admins -> Grafana Admin, other users -> Viewer; the local admin login stays.
+sso:
+  enabled: true
+
+kube-prometheus-stack:
+  grafana:
+    grafana.ini:
+      server:
+        root_url: https://grafana.workstation.internal
+      auth.generic_oauth:
+        enabled: true
+        name: Workstation SSO
+        client_id: grafana
+        scopes: openid profile email groups
+        auth_url: https://sso.workstation.internal/realms/workstation/protocol/openid-connect/auth
+        token_url: https://sso.workstation.internal/realms/workstation/protocol/openid-connect/token
+        api_url: https://sso.workstation.internal/realms/workstation/protocol/openid-connect/userinfo
+        signout_redirect_url: https://sso.workstation.internal/realms/workstation/protocol/openid-connect/logout?client_id=grafana&post_logout_redirect_uri=https%3A%2F%2Fgrafana.workstation.internal%2Flogin
+        use_pkce: true
+        allow_sign_up: true
+        login_attribute_path: preferred_username
+        email_attribute_path: email
+        name_attribute_path: name
+        role_attribute_path: contains(groups[*], 'workstation-admins') && 'Admin' || 'Viewer'
+        # The SSO certificate is signed by the workstation CA (trust-manager bundle).
+        tls_client_ca: /etc/workstation-ca/ca-certificates.crt
+    envValueFrom:
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+        secretKeyRef:
+          name: keycloak-client-grafana-secret
+          key: clientSecret
+    extraConfigmapMounts:
+      - name: workstation-ca
+        mountPath: /etc/workstation-ca
+        configMap: workstation-ca
+        readOnly: true

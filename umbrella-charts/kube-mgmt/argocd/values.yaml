@@ -14,6 +14,14 @@ ingressRoute:
     name: argocd-server
     port: 80
 
+# Sign-in through the workstation Keycloak, switched on by the platform chart with values-sso.yaml
+# (the OIDC settings of argo-cd live there). Renders the KeycloakClient of Argo CD.
+sso:
+  enabled: false
+  realm: workstation
+  clientId: argocd
+  url: https://argocd.workstation.internal
+
 # ArgoCD values for a single-node local workstation. Minimal footprint: dex (SSO) and the
 # notifications controller are disabled. The server runs in insecure mode behind the local ingress.
 # The repo-server carries the KSOPS kustomize plugin so SOPS/age-encrypted secrets can be

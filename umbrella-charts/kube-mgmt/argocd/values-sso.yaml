@@ -1,0 +1,32 @@
+# Added by the platform chart when sso.enabled: sign-in through the workstation Keycloak.
+# Members of workstation-admins are Argo CD admins; the local `admin` account stays for break-glass.
+sso:
+  enabled: true
+
+argo-cd:
+  configs:
+    cm:
+      url: https://argocd.workstation.internal
+      oidc.config: |
+        name: Workstation SSO
+        issuer: https://sso.workstation.internal/realms/workstation
+        clientID: argocd
+        enablePKCEAuthentication: true
+        requestedScopes: [openid, profile, email, groups]
+    rbac:
+      scopes: "[groups]"
+      policy.csv: |
+        g, workstation-admins, role:admin
+  server:
+    # The SSO certificate is signed by the workstation CA (trust-manager bundle).
+    env:
+      - name: SSL_CERT_FILE
+        value: /etc/workstation-ca/ca-certificates.crt
+    volumes:
+      - name: workstation-ca
+        configMap:
+          name: workstation-ca
+    volumeMounts:
+      - name: workstation-ca
+        mountPath: /etc/workstation-ca
+        readOnly: true

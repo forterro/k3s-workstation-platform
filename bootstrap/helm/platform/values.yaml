@@ -15,7 +15,8 @@ configRepoRevision: main
 syncOptions: [CreateNamespace=true, ServerSideApply=true]
 
 # Opt-in shared services, switched on in the config repo values/platform.yaml. An app with
-# `requires: <service>` is only rendered when `<service>.enabled` is true.
+# `requires: <service>` is only rendered when `<service>.enabled` is true; an app with
+# `ssoValues: <file>` also reads that file of its chart when sso is enabled (it signs in through it).
 sso:
   # Keycloak at https://sso.workstation.internal (local users, realm `workstation`).
   enabled: false
@@ -69,12 +70,16 @@ apps:
     namespace: argocd
     path: umbrella-charts/kube-mgmt/argocd
     syncOptions: [ServerSideApply=true]
+    # Added when sso.enabled: sign-in through Keycloak (its KeycloakClient needs the keycloak CRDs).
+    ssoValues: values-sso.yaml
+    retry: {limit: 10, backoff: {duration: 15s, factor: 2, maxDuration: 3m}}
   - name: headlamp
     namespace: headlamp
     path: umbrella-charts/kube-mgmt/headlamp
   - name: kube-prometheus-stack
     namespace: observability
     path: umbrella-charts/observability/kube-prometheus-stack
+    ssoValues: values-sso.yaml
     # The stack's large CRDs can take longer to become Established than a single sync allows.
     retry: {limit: 10, backoff: {duration: 15s, factor: 2, maxDuration: 3m}}
   - name: loki

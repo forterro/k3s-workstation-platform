@@ -82,3 +82,12 @@ ingressRoute:
   service:
     name: grafana
     port: 80
+
+# Grafana sign-in through the workstation Keycloak, switched on by the platform chart with
+# values-sso.yaml (the grafana.ini settings live there). Renders the KeycloakClient of Grafana; the
+# operator generates its secret keycloak-client-<clientId>-secret in this namespace.
+sso:
+  enabled: false
+  realm: workstation
+  clientId: grafana
+  url: https://grafana.workstation.internal

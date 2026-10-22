@@ -1,6 +1,7 @@
 {{- $root := . -}}
 {{- range .Values.apps }}
 {{- if or (not .requires) (index $root.Values .requires).enabled }}
+{{- $sso := and .ssoValues $root.Values.sso.enabled }}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -25,6 +26,9 @@ spec:
       path: {{ .path | quote }}
       helm:
         valueFiles:
+          {{- if $sso }}
+          - {{ .ssoValues }}
+          {{- end }}
           - $values/values/{{ .name }}.yaml
         ignoreMissingValueFiles: true
     - repoURL: {{ $root.Values.configRepoURL | quote }}
@@ -35,6 +39,11 @@ spec:
     repoURL: {{ $root.Values.repoURL | quote }}
     targetRevision: {{ $root.Values.targetRevision | quote }}
     path: {{ .path | quote }}
+    {{- if $sso }}
+    helm:
+      valueFiles:
+        - {{ .ssoValues }}
+    {{- end }}
   {{- end }}
   destination:
     server: https://kubernetes.default.svc
