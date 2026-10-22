@@ -39,6 +39,10 @@ spec:
     kind: ClusterKeycloakRealm
     name: {{ .Values.realm }}
   name: {{ .Values.adminGroup }}
+  # Admins also manage the realm itself (console: /admin/{{ .Values.realm }}/console/), not the master realm.
+  clientRoles:
+    - clientId: realm-management
+      roles: [realm-admin]
 ---
 # `groups` claim (group names, no path) for the clients that list this scope.
 apiVersion: v1.edp.epam.com/v1

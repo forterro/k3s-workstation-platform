@@ -236,8 +236,10 @@ users:
 ```
 
 A user is created once with a generated initial password (Secret `keycloak-user-<username>`) and
-must change it at the first sign-in; the operator never resets it afterwards. The Keycloak bootstrap
-admin (`admin`, Secret `keycloak-admin`) is for break-glass use:
+must change it at the first sign-in; the operator never resets it afterwards. Admins manage the realm
+(users, groups, clients) at `https://sso.workstation.internal/admin/workstation/console/` with their
+own account. The Keycloak bootstrap admin (`admin`, Secret `keycloak-admin`) is the only account of the
+`master` realm (`/admin/`) and is for break-glass use:
 
 ```bash
 kubectl -n keycloak get secret keycloak-user-olivier -o jsonpath='{.data.password}' | base64 -d; echo
