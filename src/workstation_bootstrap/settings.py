@@ -176,6 +176,15 @@ def config_repo_revision(config: dict) -> str:
     return str(config.get(CONFIG_REPO_REVISION_KEY) or DEFAULT_REVISION)
 
 
+def sso_enabled() -> bool:
+    """Whether the config repo switches the opt-in SSO service on (``values/platform.yaml``)."""
+    try:
+        data = yaml.safe_load((CONFIG_DIR / "values" / "platform.yaml").read_text(encoding="utf-8"))
+    except OSError:
+        return False
+    return bool(((data or {}).get("sso") or {}).get("enabled"))
+
+
 def extra_root_apps(config: dict) -> list[dict]:
     """Return the layer components declared by the consumer.
 

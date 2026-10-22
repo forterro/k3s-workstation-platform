@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
+import yaml
+
 from . import command, console, gpu, helm, k3s, settings, tools
 
 _STEP_CA_NAMESPACE = "step-ca"
@@ -44,6 +46,16 @@ _HOST_NODE_CA_DROPIN = Path("/etc/profile.d/workstation-node-ca.sh")
 
 _OBSERVABILITY_NAMESPACE = "observability"
 _GRAFANA_ADMIN_SECRET = "grafana-admin"
+
+# Kubernetes API sign-in through the opt-in SSO. The authentication file is reloaded by the API
+# server on change; only adding or removing the k3s drop-in needs a restart.
+_K3S_SSO_DROPIN = Path("/etc/rancher/k3s/config.yaml.d/50-workstation-sso.yaml")
+_K3S_AUTHN_CONFIG = Path("/etc/rancher/k3s/authentication-config.yaml")
+_SSO_ISSUER = "https://sso.workstation.internal/realms/workstation"
+# Clients whose ID tokens the API accepts: Headlamp and kubectl (kubelogin).
+_SSO_API_AUDIENCES = ("headlamp", "kubernetes")
+# Matches the cluster-admin binding of the keycloak chart (`oidc:workstation-admins`).
+_SSO_CLAIM_PREFIX = "oidc:"
 
 # Marks resources that are managed imperatively (outside git) so the ArgoCD step-ca application
 # does not treat them as extraneous and prune them.
@@ -756,6 +768,92 @@ def _phase_extra_root_apps(context: Context) -> None:
         )
 
 
+def _authentication_config(ca_pem: str) -> str:
+    """Structured authentication config: the API server accepts the realm's ID tokens."""
+    return yaml.safe_dump(
+        {
+            "apiVersion": "apiserver.config.k8s.io/v1",
+            "kind": "AuthenticationConfiguration",
+            "jwt": [
+                {
+                    "issuer": {
+                        "url": _SSO_ISSUER,
+                        "audiences": list(_SSO_API_AUDIENCES),
+                        "audienceMatchPolicy": "MatchAny",
+                        "certificateAuthority": ca_pem,
+                    },
+                    "claimMappings": {
+                        "username": {"claim": "preferred_username", "prefix": _SSO_CLAIM_PREFIX},
+                        "groups": {"claim": "groups", "prefix": _SSO_CLAIM_PREFIX},
+                    },
+                }
+            ],
+        },
+        sort_keys=False,
+    )
+
+
+def _sso_dropin() -> str:
+    return (
+        "# Managed by k3s-workstation-platform bootstrap (phase api-oidc).\n"
+        "kube-apiserver-arg+:\n"
+        f"  - authentication-config={_K3S_AUTHN_CONFIG}\n"
+    )
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def _phase_api_oidc(context: Context) -> None:
+    """Let the Kubernetes API trust the workstation SSO when it is enabled (Headlamp, kubectl).
+
+    Writes a structured authentication config (issuer, workstation CA, audiences, ``oidc:``
+    prefix) and the k3s drop-in pointing at it. k3s restarts only when the drop-in is added or
+    removed; later changes of the authentication file are reloaded live by the API server.
+    """
+    files = (_K3S_SSO_DROPIN, _K3S_AUTHN_CONFIG)
+    if not settings.sso_enabled():
+        if not any(path.exists() for path in files):
+            console.sub("SSO disabled; the Kubernetes API keeps its local authentication only")
+            return
+        if context.dry_run:
+            console.sub("would remove the API server SSO configuration and restart k3s")
+            return
+        command.run(_sudo(["rm", "-f", *(str(path) for path in files)]))
+        k3s.restart()
+        console.ok("Kubernetes API no longer trusts the workstation SSO")
+        return
+
+    ca = settings.ca_dir() / "root_ca.crt"
+    if not ca.exists():
+        raise PhaseError(f"workstation root CA not found: {ca}")
+    authn, dropin = _authentication_config(ca.read_text(encoding="ascii")), _sso_dropin()
+    if context.dry_run:
+        console.sub(f"would configure the API server to trust {_SSO_ISSUER}")
+        return
+    if _read_text(_K3S_AUTHN_CONFIG) != authn:
+        _sudo_write(_K3S_AUTHN_CONFIG, authn)
+    if _read_text(_K3S_SSO_DROPIN) == dropin:
+        console.ok("Kubernetes API already trusts the workstation SSO")
+        return
+    _sudo_write(_K3S_SSO_DROPIN, dropin)
+    console.step("Restarting k3s so the API server trusts the workstation SSO")
+    try:
+        k3s.restart()
+    except command.CommandError as error:
+        # Never leave the cluster down: go back to the previous API server configuration.
+        command.run(_sudo(["rm", "-f", str(_K3S_SSO_DROPIN)]))
+        k3s.restart()
+        raise PhaseError(
+            f"k3s did not start with the SSO configuration, rolled back: {error}"
+        ) from error
+    console.ok("Kubernetes API trusts the workstation SSO")
+
+
 def _apply_seed_chart(
     context: Context,
     *,
@@ -827,6 +925,11 @@ PHASE_PLAN: tuple[Phase, ...] = (
         "extra-root-apps",
         "Create the layer root Applications declared in the consumer config",
         _phase_extra_root_apps,
+    ),
+    Phase(
+        "api-oidc",
+        "Let the Kubernetes API trust the workstation SSO when it is enabled (Headlamp, kubectl)",
+        _phase_api_oidc,
     ),
 )
 
