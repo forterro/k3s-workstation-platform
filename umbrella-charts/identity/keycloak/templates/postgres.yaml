@@ -5,6 +5,9 @@ apiVersion: apps.kubeblocks.io/v1
 kind: Cluster
 metadata:
   name: {{ .Values.postgres.clusterName }}
+  annotations:
+    # Before keycloak-db-init (wave -1): the Job waits for the account Secret this Cluster generates.
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   terminationPolicy: {{ .Values.postgres.terminationPolicy }}
   clusterDef: postgresql
