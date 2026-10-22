@@ -1,0 +1,25 @@
+# Confidential client: the operator generates its secret (keycloak-client-<name>-secret), mounted by
+# the homeserver.
+apiVersion: v1.edp.epam.com/v1
+kind: KeycloakClient
+metadata:
+  name: {{ .Values.sso.clientId }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  realmRef:
+    kind: ClusterKeycloakRealm
+    name: {{ .Values.sso.realm }}
+  clientId: {{ .Values.sso.clientId }}
+  name: Matrix
+  public: false
+  standardFlowEnabled: true
+  directAccess: false
+  webUrl: {{ .Values.web.publicUrl }}
+  redirectUris:
+    - {{ .Values.publicUrl }}/_matrix/client/unstable/login/sso/callback/{{ .Values.sso.clientId }}
+  webOrigins:
+    - {{ .Values.publicUrl }}
+  attributes:
+    pkce.code.challenge.method: S256
+  defaultClientScopes: [web-origins, acr, basic, profile, email, roles, groups]

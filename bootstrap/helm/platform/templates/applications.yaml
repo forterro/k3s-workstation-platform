@@ -1,4 +1,7 @@
 {{- $root := . -}}
+{{- if and .Values.matrix.enabled (not .Values.sso.enabled) }}
+{{- fail "matrix.enabled needs sso.enabled: people sign in to the chat through the workstation SSO" }}
+{{- end }}
 {{- range .Values.apps }}
 {{- if or (not .requires) (index $root.Values .requires).enabled }}
 {{- $sso := and .ssoValues $root.Values.sso.enabled }}

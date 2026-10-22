@@ -1,0 +1,35 @@
+{{- range .Values.appservices }}
+---
+# Lets {{ .namespace }}/{{ .serviceAccount }} register its bots: write its own registration Secret and
+# restart the homeserver so it loads it. `create` cannot be limited to a name in RBAC; reading or
+# changing any other Secret stays forbidden.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: matrix-appservice-{{ .name }}
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [matrix-appservice-{{ .name }}]
+    verbs: [get, patch, update]
+  - apiGroups: [apps]
+    resources: [statefulsets]
+    resourceNames: [matrix]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: matrix-appservice-{{ .name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: matrix-appservice-{{ .name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .serviceAccount }}
+    namespace: {{ .namespace }}
+{{- end }}

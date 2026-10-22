@@ -99,3 +99,16 @@ def test_sso_consumers_read_their_sso_values_only_when_sso_is_enabled() -> None:
         "values-sso.yaml",
         "$values/values/argocd.yaml",
     ]
+
+
+def test_matrix_chat_is_opt_in_and_needs_sso() -> None:
+    assert "matrix" not in render("--set", "sso.enabled=true")
+    matrix = render("--set", "sso.enabled=true", "--set", "matrix.enabled=true")["matrix"]
+    assert matrix["spec"]["destination"]["namespace"] == "matrix"
+    assert matrix["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"] == "4"
+    failed = subprocess.run(
+        ["helm", "template", "root", str(CHART), "--set", "matrix.enabled=true"],
+        capture_output=True,
+        text=True,
+    )
+    assert failed.returncode != 0 and "matrix.enabled needs sso.enabled" in failed.stderr

@@ -1,0 +1,32 @@
+{{- range list (dict "name" "matrix" "url" .Values.publicUrl "port" 8008) (dict "name" "element" "url" .Values.web.publicUrl "port" 8080) }}
+{{- $host := (urlParse .url).host }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .name }}-tls
+spec:
+  secretName: {{ .name }}-tls
+  dnsNames:
+    - {{ $host }}
+  issuerRef:
+    name: {{ $.Values.issuer }}
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .name }}
+spec:
+  entryPoints:
+    - {{ $.Values.entryPoint }}
+  routes:
+    - match: Host(`{{ $host }}`)
+      kind: Rule
+      services:
+        - name: {{ .name }}
+          port: {{ .port }}
+  tls:
+    secretName: {{ .name }}-tls
+{{- end }}

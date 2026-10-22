@@ -20,6 +20,9 @@ syncOptions: [CreateNamespace=true, ServerSideApply=true]
 sso:
   # Keycloak at https://sso.workstation.internal (local users, realm `workstation`).
   enabled: false
+matrix:
+  # Chat at https://element.workstation.internal (Tuwunel + Element, sign-in through sso).
+  enabled: false
 
 apps:
   - name: prometheus-operator-crds
@@ -123,6 +126,20 @@ apps:
         jsonPointers:
           - /spec/componentSpecs/0/componentDef
           - /spec/componentSpecs/0/podUpdatePolicy
+  - name: matrix
+    requires: matrix
+    namespace: matrix
+    path: umbrella-charts/collaboration/matrix
+    wave: "4"
+    # Its KeycloakClient needs the keycloak CRDs and the realm.
+    retry: {limit: 10, backoff: {duration: 15s, factor: 2, maxDuration: 3m}}
+    # Appservice consumers restart the homeserver (rollout restart) after writing a registration.
+    ignoreDifferences:
+      - group: apps
+        kind: StatefulSet
+        name: matrix
+        jqPathExpressions:
+          - .spec.template.metadata.annotations."kubectl.kubernetes.io/restartedAt"
   - name: workstation-dashboards
     namespace: observability
     path: umbrella-charts/observability/workstation-dashboards
