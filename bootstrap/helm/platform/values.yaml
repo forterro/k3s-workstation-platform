@@ -90,6 +90,12 @@ apps:
         jqPathExpressions:
           - .spec.volumeClaimTemplates[]?.apiVersion
           - .spec.volumeClaimTemplates[]?.kind
+  - name: trust-manager
+    namespace: cert-manager
+    path: umbrella-charts/core-stack/trust-manager
+    wave: "1"
+    # The Bundle needs the webhook the same sync installs.
+    retry: {limit: 10, backoff: {duration: 15s, factor: 2, maxDuration: 3m}}
   - name: workstation-dashboards
     namespace: observability
     path: umbrella-charts/observability/workstation-dashboards

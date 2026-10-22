@@ -1,0 +1,11 @@
+apiVersion: v2
+name: trust-manager
+description: trust-manager and the workstation CA bundle (public CAs + step-ca root) in every namespace
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+dependencies:
+  # renovate: registryUrl=https://charts.jetstack.io
+  - name: trust-manager
+    repository: https://charts.jetstack.io
+    version: v0.25.0
