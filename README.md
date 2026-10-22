@@ -273,6 +273,30 @@ kubectl --user=sso get nodes
 
 Their local admin accounts stay for break-glass use.
 
+### Chat (Matrix)
+
+```yaml
+# values/platform.yaml (needs sso.enabled)
+matrix:
+  enabled: true
+```
+
+Deploys a shared Matrix homeserver ([Tuwunel](https://github.com/matrix-construct/tuwunel), one pod,
+RocksDB volume, no federation) and Element Web in the namespace `matrix`:
+`https://element.workstation.internal` for people, `https://matrix.workstation.internal` for
+clients. People sign in with their workstation SSO account only (Matrix ID
+`@<username>:matrix.workstation.internal`). Bots are appservices: list each consumer in
+`values/matrix.yaml`, which lets its ServiceAccount write its registration into the Secret
+`matrix-appservice-<name>` (the keys of all consumers share one directory: they must not clash)
+and restart the homeserver (`kubectl rollout restart`) to load it:
+
+```yaml
+appservices:
+  - name: agent-harness
+    namespace: agent-harness
+    serviceAccount: agent-harness
+```
+
 ## Local access
 
 How access works:

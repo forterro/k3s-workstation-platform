@@ -1,0 +1,6 @@
+apiVersion: v2
+name: matrix
+description: Opt-in workstation chat - Tuwunel homeserver and Element Web, signing in through the workstation Keycloak; bots join as appservices
+type: application
+version: 0.1.0
+appVersion: v1.9.4
