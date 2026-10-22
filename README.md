@@ -80,11 +80,12 @@ Then it runs the seed phases in order:
 7. Configures host-side split DNS so `*.workstation.internal` resolves from the host (installs a
    local dnsmasq forwarder and points systemd-resolved at it). See Local access below.
 8. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
-9. Installs the ArgoCD root app-of-apps (`0-root-k3s-workstation`).
+9. Installs or upgrades the ArgoCD root app-of-apps (`0-root-k3s-workstation`).
 
 From there, ArgoCD tracks the git repository set in `rootApp` (see
-[bootstrap/helm/root-app/values.yaml](bootstrap/helm/root-app/values.yaml)) and reconciles the child
-Applications under `apps/`.
+[bootstrap/helm/root-app/values.yaml](bootstrap/helm/root-app/values.yaml)) and renders the
+[platform chart](bootstrap/helm/platform), which creates one child Application per base component
+(the list is in its `values.yaml`).
 
 ## Verify the install
 
@@ -194,6 +195,11 @@ and kept in sync. The `extra-root-apps` phase seeds an ArgoCD repository credent
 config repo (taken from the git credential helper), creates the `project`, and applies the layer
 Application into the `argocd` namespace after the base root app, injecting `configRepoURL`. Both
 settings default to empty, so the base platform runs standalone.
+
+The base components read the config repo too. With a config repo set, the root app passes it to
+the platform chart, which reads `values/platform.yaml` (platform-wide switches) and gives every base
+Application the optional overlay `values/<app>.yaml` (for example `values/kube-prometheus-stack.yaml`).
+A missing file is ignored, so a workstation only keeps the overlays it needs.
 
 For a full walk-through of creating the private config repo (age key, `config.yaml`, secrets, bootstrap
 wiring), see [docs/private-config-repo.md](docs/private-config-repo.md).
@@ -351,8 +357,9 @@ pyproject.toml  uv.lock  Makefile
 tool-versions.yaml           # pinned CLI tool versions
 src/workstation_bootstrap/   # imperative seed generator
 bootstrap/helm/root-app/     # ArgoCD app-of-apps entrypoint (the only seed-only chart)
+bootstrap/helm/platform/     # base Applications (one per component), with config repo overlays
 umbrella-charts/             # single source of truth: every workload chart (seed-installed + GitOps)
-apps/                        # child ArgoCD Applications reconciled by the root app-of-apps
+apps/                        # legacy child Applications (root app before 0.2.0), removed next
 secrets/                     # SOPS-encrypted secrets rendered by the KSOPS plugin
 scripts/                     # operational scripts (CA generation)
 config/                      # optional local value overrides

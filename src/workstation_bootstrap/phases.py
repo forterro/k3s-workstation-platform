@@ -573,13 +573,13 @@ def _phase_grafana_admin_secret(context: Context) -> None:
 
 
 def _phase_root_app(context: Context) -> None:
+    """Install or upgrade the root app-of-apps (idempotent: the release only holds its spec)."""
     chart = context.root / "bootstrap" / "helm" / "root-app"
     if not chart.exists():
         raise PhaseError(f"seed chart not found: {chart}")
-    if helm.release_exists("root-app", "argocd"):
-        console.sub("root-app already seeded; ArgoCD owns it now \u2014 skipping")
-        return
     config = settings.load_or_init_config(context.root)
+    # The root app reads the config repo (values/platform.yaml and per-app overlays).
+    _ensure_config_repo_credential(config, _kubectl_env())
     values_file = settings.render_root_app_values(config)
     helm.update_dependencies(chart)
     helm.install(chart, release="root-app", namespace="argocd", values=[values_file])

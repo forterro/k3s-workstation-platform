@@ -189,12 +189,14 @@ def extra_root_apps(config: dict) -> list[dict]:
 
 
 def render_root_app_values(config: dict) -> Path:
-    """Write a values override that points the root app at the configured platform repository."""
+    """Write the root app values: the platform repository and this workstation's config repo."""
     override = {
         "rootApp": {
             "repoURL": config.get("platform_repo_url", DEFAULT_REPO_URL),
             "targetRevision": config.get("platform_revision", DEFAULT_REVISION),
-        }
+        },
+        "configRepoURL": config_repo_url(config) or "",
+        "configRepoRevision": config_repo_revision(config),
     }
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     path = CONFIG_DIR / "root-app-values.yaml"
