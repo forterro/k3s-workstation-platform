@@ -14,6 +14,12 @@ configRepoRevision: main
 # Sync options of every app unless the app sets its own `syncOptions`.
 syncOptions: [CreateNamespace=true, ServerSideApply=true]
 
+# Opt-in shared services, switched on in the config repo values/platform.yaml. An app with
+# `requires: <service>` is only rendered when `<service>.enabled` is true.
+sso:
+  # Keycloak at https://sso.workstation.internal (local users, realm `workstation`).
+  enabled: false
+
 apps:
   - name: prometheus-operator-crds
     namespace: observability
@@ -96,6 +102,21 @@ apps:
     wave: "1"
     # The Bundle needs the webhook the same sync installs.
     retry: {limit: 10, backoff: {duration: 15s, factor: 2, maxDuration: 3m}}
+  - name: keycloak
+    requires: sso
+    namespace: keycloak
+    path: umbrella-charts/identity/keycloak
+    wave: "3"
+    # The operator CRDs and webhooks come with the same sync as the realm resources.
+    retry: {limit: 10, backoff: {duration: 15s, factor: 2, maxDuration: 3m}}
+    # The KubeBlocks controller fills these on the Cluster after creation.
+    ignoreDifferences:
+      - group: apps.kubeblocks.io
+        kind: Cluster
+        name: keycloak-pg
+        jsonPointers:
+          - /spec/componentSpecs/0/componentDef
+          - /spec/componentSpecs/0/podUpdatePolicy
   - name: workstation-dashboards
     namespace: observability
     path: umbrella-charts/observability/workstation-dashboards

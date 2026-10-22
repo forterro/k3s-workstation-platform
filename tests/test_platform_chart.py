@@ -74,3 +74,10 @@ def test_config_repo_adds_an_optional_overlay_per_app() -> None:
         "targetRevision": "main",
         "ref": "values",
     }
+
+
+def test_sso_service_is_opt_in() -> None:
+    assert "keycloak" not in render()
+    keycloak = render("--set", "sso.enabled=true")["keycloak"]
+    assert keycloak["spec"]["destination"]["namespace"] == "keycloak"
+    assert keycloak["spec"]["source"]["path"] == "umbrella-charts/identity/keycloak"

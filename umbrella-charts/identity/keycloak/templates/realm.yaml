@@ -1,0 +1,95 @@
+# The realm as code, reconciled by keycloak-operator. Consumers reference the realm by name
+# (ClusterKeycloakRealm `{{ .Values.realm }}`) from their own KeycloakClient. The CRDs come with this
+# chart: skip the dry run of the custom resources on the first sync.
+apiVersion: v1.edp.epam.com/v1alpha1
+kind: ClusterKeycloak
+metadata:
+  name: workstation
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  url: http://keycloak-http.{{ .Release.Namespace }}.svc
+  auth:
+    passwordGrant:
+      username:
+        value: admin
+      passwordRef:
+        name: keycloak-admin
+        key: password
+---
+apiVersion: v1.edp.epam.com/v1alpha1
+kind: ClusterKeycloakRealm
+metadata:
+  name: {{ .Values.realm }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    edp.epam.com/preserve-resources-on-deletion: "true"
+spec:
+  clusterKeycloakRef: workstation
+  realmName: {{ .Values.realm }}
+---
+apiVersion: v1.edp.epam.com/v1
+kind: KeycloakRealmGroup
+metadata:
+  name: {{ .Values.realm }}-{{ .Values.adminGroup }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  realmRef:
+    kind: ClusterKeycloakRealm
+    name: {{ .Values.realm }}
+  name: {{ .Values.adminGroup }}
+---
+# `groups` claim (group names, no path) for the clients that list this scope.
+apiVersion: v1.edp.epam.com/v1
+kind: KeycloakClientScope
+metadata:
+  name: {{ .Values.realm }}-groups
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  realmRef:
+    kind: ClusterKeycloakRealm
+    name: {{ .Values.realm }}
+  name: groups
+  protocol: openid-connect
+  protocolMappers:
+    - name: groups
+      protocol: openid-connect
+      protocolMapper: oidc-group-membership-mapper
+      config:
+        claim.name: groups
+        full.path: "false"
+        id.token.claim: "true"
+        access.token.claim: "true"
+        userinfo.token.claim: "true"
+{{- range .Values.users }}
+---
+apiVersion: v1.edp.epam.com/v1
+kind: KeycloakRealmUser
+metadata:
+  name: {{ $.Values.realm }}-{{ .username }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # Removing the entry stops managing the person; it never deletes the account.
+    edp.epam.com/preserve-resources-on-deletion: "true"
+spec:
+  realmRef:
+    kind: ClusterKeycloakRealm
+    name: {{ $.Values.realm }}
+  username: {{ .username | quote }}
+  email: {{ .email | quote }}
+  emailVerified: true
+  firstName: {{ .firstName | default "" | quote }}
+  lastName: {{ .lastName | default "" | quote }}
+  enabled: true
+  # Created once: the operator never resets the password or the profile afterwards.
+  reconciliationStrategy: addOnly
+  passwordSecret:
+    name: keycloak-user-{{ .username }}
+    key: password
+  requiredUserActions: [UPDATE_PASSWORD]
+  {{- if .admin }}
+  groups: [{{ $.Values.adminGroup }}]
+  {{- end }}
+{{- end }}
