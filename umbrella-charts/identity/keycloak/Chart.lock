@@ -1,0 +1,9 @@
+dependencies:
+- name: keycloakx
+  repository: https://codecentric.github.io/helm-charts
+  version: 7.4.0
+- name: keycloak-operator
+  repository: https://epam.github.io/edp-helm-charts/stable
+  version: 1.35.0
+digest: sha256:239c56e45113862244856bc7c39e079c4b2483f99c756701fc27e975468345a3
+generated: "2026-10-22T11:43:33.690757921+02:00"

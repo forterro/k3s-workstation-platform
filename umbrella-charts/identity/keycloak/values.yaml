@@ -1,0 +1,108 @@
+# Opt-in workstation SSO (`sso.enabled: true` in the config repo values/platform.yaml).
+# Keycloak at https://sso.workstation.internal, realm `workstation`, LOCAL users only (no external
+# identity provider). The realm, its groups and the users are custom resources reconciled by the
+# EPAM keycloak-operator; each consumer (Argo CD, Grafana, Matrix...) declares its own KeycloakClient.
+# Per-workstation users go in the config repo overlay values/keycloak.yaml.
+
+host: sso.workstation.internal
+entryPoint: websecure
+issuer: step-ca-acme
+
+realm: workstation
+
+# Members of this group administer every SSO-enabled tool (Argo CD admin, Grafana admin...).
+adminGroup: workstation-admins
+
+# Local users, created once (the operator never resets them afterwards). Each one gets a generated
+# initial password in the Secret keycloak-user-<username> (key `password`) and must change it at
+# the first sign-in. Example:
+#   users:
+#     - username: olivier
+#       email: olivier@example.com
+#       firstName: Olivier
+#       lastName: Example
+#       admin: true
+users: []
+
+# Idempotent PreSync Job that creates the generated Secrets once (Keycloak bootstrap admin and the
+# users' initial passwords) and never rotates them.
+secretsJob:
+  image: alpine/k8s:1.37.1
+
+postgres:
+  clusterName: keycloak-pg
+  # Supported serviceVersion values come from `kubectl get cmpv postgresql`.
+  serviceVersion: "17.5.0"
+  terminationPolicy: Delete
+  storage: 2Gi
+  storageClassName: ""
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 512Mi}
+  database: keycloak
+
+keycloakx:
+  fullnameOverride: keycloak
+  replicas: 1
+  command:
+    - /opt/keycloak/bin/kc.sh
+    - start
+    - --http-port=8080
+    - --hostname-strict=true
+  http:
+    relativePath: /
+    managementRelativePath: /
+  proxy:
+    enabled: true
+    mode: xforwarded
+    http:
+      enabled: true
+  # The KubeBlocks primary service and the account Secret it generates (`postgres` account).
+  database:
+    vendor: postgres
+    hostname: keycloak-pg-postgresql-postgresql
+    port: 5432
+    database: keycloak
+    username: postgres
+    existingSecret: keycloak-pg-postgresql-account-postgres
+    existingSecretKey: password
+  extraEnv: |
+    - name: KC_HOSTNAME
+      value: https://sso.workstation.internal
+    - name: KC_BOOTSTRAP_ADMIN_USERNAME
+      value: admin
+    - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-admin
+          key: password
+  resources:
+    requests: {cpu: 100m, memory: 768Mi}
+    limits: {memory: 1536Mi}
+  podSecurityContext:
+    fsGroup: 1000
+  securityContext:
+    runAsUser: 1000
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+  # Keycloak restarts until the database answers; no extra init container.
+  dbchecker:
+    enabled: false
+  metrics:
+    enabled: true
+  health:
+    enabled: true
+
+keycloak-operator:
+  # Reconciles the cluster-scoped ClusterKeycloak / ClusterKeycloakRealm and the consumers' CRs in
+  # any namespace.
+  clusterReconciliationEnabled: true
+  # Owner references to the realm would hide the CRs from Argo CD pruning (removed config would
+  # stay in Keycloak) and cascade-delete everything with the realm.
+  enableOwnerRef: false
+  # The start-up cache sync of the cluster-wide watches needs more than the chart default.
+  resources:
+    requests: {cpu: 20m, memory: 128Mi}
+    limits: {memory: 384Mi}

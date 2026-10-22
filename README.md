@@ -208,6 +208,41 @@ A missing file is ignored, so a workstation only keeps the overlays it needs.
 For a full walk-through of creating the private config repo (age key, `config.yaml`, secrets, bootstrap
 wiring), see [docs/private-config-repo.md](docs/private-config-repo.md).
 
+## Opt-in shared services
+
+Switched on per workstation in the config repo `values/platform.yaml`; off by default.
+
+### SSO (Keycloak)
+
+```yaml
+# values/platform.yaml
+sso:
+  enabled: true
+```
+
+Deploys Keycloak at `https://sso.workstation.internal` (namespace `keycloak`): realm `workstation`,
+**local users only**, a KubeBlocks PostgreSQL database, and the
+[EPAM keycloak-operator](https://github.com/epam/edp-keycloak-operator), which keeps the realm, its
+groups and the users as code. Each consumer declares its own `KeycloakClient` (realm reference
+`kind: ClusterKeycloakRealm`, `name: workstation`); members of the group `workstation-admins`
+administer the SSO-enabled tools. Users go in `values/keycloak.yaml`:
+
+```yaml
+users:
+  - username: olivier
+    email: olivier@example.com
+    firstName: Olivier
+    admin: true
+```
+
+A user is created once with a generated initial password (Secret `keycloak-user-<username>`) and
+must change it at the first sign-in; the operator never resets it afterwards. The Keycloak bootstrap
+admin (`admin`, Secret `keycloak-admin`) is for break-glass use:
+
+```bash
+kubectl -n keycloak get secret keycloak-user-olivier -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
 ## Local access
 
 How access works:
