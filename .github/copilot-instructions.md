@@ -22,23 +22,25 @@ imperatively (a Python seed) and then hands off to ArgoCD (app-of-apps) for GitO
      init container; generic secret infra, not used by the CA anymore.
   5. `metallb` — install `umbrella-charts/core-stack/metallb` then apply a single-address
      IPAddressPool + L2Advertisement imperatively from the configured Traefik IP.
-  6. `root-app` — install `bootstrap/helm/root-app` (app-of-apps; root app recurses `apps/`).
+  6. `root-app` — install or upgrade `bootstrap/helm/root-app` (app-of-apps; the root app renders
+     `bootstrap/helm/platform` with the config repo overlays).
 - GitOps bricks are per-brick umbrella charts under `umbrella-charts/`, each with a child ArgoCD
-  Application in `apps/`. The seed-installed charts (cert-manager, metallb, argocd) are then adopted
-  and reconciled by their own `apps/` manifests, so nothing stays orphaned outside GitOps. Umbrella
+  Application declared in `bootstrap/helm/platform/values.yaml` (`apps:`; optional per-workstation
+  overlay `values/<app>.yaml` in the config repo). The seed-installed charts (cert-manager, metallb,
+  argocd) are then adopted and reconciled by their own child Application, so nothing stays orphaned outside GitOps. Umbrella
   dependencies are vendored (Chart.lock + charts/*.tgz committed); regenerate with `make deps`
   (needed on Renovate bumps).
 
 ## Bricks currently in git
 
 - `umbrella-charts/core-stack/cert-manager` — cert-manager + CRDs. Seed-installed (phase 2) and then
-  reconciled by `apps/cert-manager.yaml` (sync-wave -1, CreateNamespace).
+  reconciled by its child Application (sync-wave -1, CreateNamespace).
 - `umbrella-charts/core-stack/metallb` — MetalLB (L2). Seed-installed (phase 5); the single-address
   IPAddressPool + L2Advertisement stay imperative (machine-specific IP, IgnoreExtraneous). The
-  workload is reconciled by `apps/metallb.yaml` (sync-wave -1, CreateNamespace).
+  workload is reconciled by its child Application (sync-wave -1, CreateNamespace).
 - `umbrella-charts/kube-mgmt/argocd` — the ArgoCD workload (argo-cd subchart, server.insecure) plus a
   Traefik IngressRoute + step-ca Certificate on `argocd.workstation.internal`. Seed-installed with
-  the ingress disabled; `apps/argocd.yaml` makes ArgoCD self-manage and enable the ingress.
+  the ingress disabled; the `argocd` child Application makes ArgoCD self-manage and enable the ingress.
 - `umbrella-charts/core-stack/traefik` — Traefik, `service.type=LoadBalancer` annotated
   `metallb.io/address-pool: workstation-pool` so MetalLB pins it to the fixed Traefik IP.
 - `umbrella-charts/core-stack/step-ca` — step-certificates in `existingSecrets` mode (workload only;
@@ -53,7 +55,7 @@ imperatively (a Python seed) and then hands off to ArgoCD (app-of-apps) for GitO
   the `postgresql`, `redis`, `mongodb` and `qdrant` engine addons, wrapping the upstream `kubeblocks`
   + engine charts from https://apecloud.github.io/helm-charts (generic mechanism mirrored from the
   datacentre, stripped of its Vault/external-secrets, S3 backup repo and image pull secret specifics). Reconciled by
-  `apps/kubeblocks.yaml` (ns `kb-system`, sync-wave -1, ServerSideApply + CreateNamespace + retry).
+  the `kubeblocks` child Application (ns `kb-system`, sync-wave -1, ServerSideApply + CreateNamespace + retry).
   Provides the external Postgres for stateful workloads (e.g. the LiteLLM UI). The KubeBlocks Helm
   chart does NOT ship its CRDs and the release bundle exceeds Helm's 5 MiB per-file limit, so the
   CRDs are vendored split one-file-per-CRD under the chart `crds/` dir by `make kubeblocks-crds`
@@ -72,7 +74,7 @@ imperatively (a Python seed) and then hands off to ArgoCD (app-of-apps) for GitO
 - `k3s-workstation-bootstrap set-loadbalancer-ip <ip>` (`phases.reconfigure_loadbalancer_ip`) persists
   the new IP, re-applies the pool, and `kubectl -n traefik rollout restart deployment`.
 - MetalLB is seed-installed (phase 5) from `umbrella-charts/core-stack/metallb` and reconciled by
-  `apps/metallb.yaml`; the single-address pool stays imperative (machine-specific IP,
+  the `metallb` child Application; the single-address pool stays imperative (machine-specific IP,
   IgnoreExtraneous). The IP must stay inside the WSL2 NAT subnet.
 
 ## CA is local — never commit it (hard requirement)
@@ -100,7 +102,7 @@ imperatively (a Python seed) and then hands off to ArgoCD (app-of-apps) for GitO
   time (idempotent, self-heals old CAs); `generate-ca.sh` also rewrites at generation.
 - ArgoCD pruning the imperatively-managed CA resources: fixed with the `IgnoreExtraneous` annotation.
 - step-ca app perpetually OutOfSync: the API server defaults apiVersion/kind onto StatefulSet
-  `volumeClaimTemplates`; `apps/step-ca.yaml` has an `ignoreDifferences` for those fields only.
+  `volumeClaimTemplates`; the `step-ca` child Application has an `ignoreDifferences` for those fields only.
 - Do NOT expose an in-cluster DNS on a LoadBalancer port 53: k3s servicelb (klipper) grabs node port
   53 and breaks the WSL distribution's DNS. A host-facing DNS LoadBalancer was added then reverted
   (commits 47073c5 / 07867c4). Host-side resolution must be done on Windows, not in the cluster.
