@@ -8,4 +8,4 @@ dependencies:
   # renovate: registryUrl=https://grafana.github.io/helm-charts
   - name: loki
     repository: https://grafana.github.io/helm-charts
-    version: 7.3.0
+    version: 7.5.0
