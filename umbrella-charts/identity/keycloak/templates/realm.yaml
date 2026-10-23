@@ -68,6 +68,9 @@ spec:
         access.token.claim: "true"
         userinfo.token.claim: "true"
 {{- range .Values.users }}
+{{- if lt (len (toString .username)) 3 }}
+{{- fail (printf "users: username %q is too short: Keycloak requires at least 3 characters" (toString .username)) }}
+{{- end }}
 ---
 apiVersion: v1.edp.epam.com/v1
 kind: KeycloakRealmUser
