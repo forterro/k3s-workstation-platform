@@ -30,6 +30,12 @@
       "matchFileNames": ["umbrella-charts/kubeblocks-system/kubeblocks/Chart.yaml"],
       "matchDepNames": ["kubeblocks", "postgresql", "redis", "mongodb", "qdrant"],
       "enabled": false
+    },
+    {
+      "description": "The Python of the bootstrap tool (.python-version) gets its own PR: a new Python minor needs a uv recent enough to know its stable release (an older uv picks a pre-release, on which `uv sync` can fail building packages that have no wheel yet, e.g. pyyaml).",
+      "matchManagers": ["pyenv"],
+      "groupName": "python",
+      "groupSlug": "python"
     }
   ],
   "postUpgradeTasks": {
