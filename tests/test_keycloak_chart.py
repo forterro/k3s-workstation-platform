@@ -49,3 +49,27 @@ def test_admins_manage_the_workstation_realm_with_their_own_account() -> None:
     group = objs[("KeycloakRealmGroup", "workstation-workstation-admins")]["spec"]
     assert group["name"] == "workstation-admins"
     assert {"clientId": "realm-management", "roles": ["realm-admin"]} in group["clientRoles"]
+
+
+def test_a_username_keycloak_would_refuse_fails_the_render_instead_of_never_being_created() -> None:
+    def helm(username: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                "helm",
+                "template",
+                "kc",
+                str(CHART),
+                "--namespace",
+                "keycloak",
+                "--set",
+                f"users[0].username={username}",
+                "--set",
+                "users[0].email=x@example.com",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    short = helm("sv")
+    assert short.returncode != 0 and 'username "sv" is too short' in short.stderr
+    assert helm("seb").returncode == 0

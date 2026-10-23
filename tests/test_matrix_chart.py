@@ -22,9 +22,11 @@ HARNESS = [
 pytestmark = pytest.mark.skipif(shutil.which("helm") is None, reason="helm not installed")
 
 
-def render(*args: str) -> dict[tuple[str, str], dict]:
+def render(*args: str, crd: bool = True) -> dict[tuple[str, str], dict]:
+    # Argo CD passes the cluster's API versions; the keycloak app brings KeycloakClient.
+    api = ["--api-versions", "v1.edp.epam.com/v1"] if crd else []
     out = subprocess.run(
-        ["helm", "template", "matrix", str(CHART), "--namespace", "matrix", *args],
+        ["helm", "template", "matrix", str(CHART), "--namespace", "matrix", *api, *args],
         check=True,
         capture_output=True,
         text=True,
@@ -51,6 +53,11 @@ def test_people_sign_in_through_the_workstation_sso_only() -> None:
     # The client secret the keycloak operator generates for the KeycloakClient.
     assert volumes["oidc"]["secret"]["secretName"] == "keycloak-client-matrix-secret"
     assert volumes["workstation-ca"]["configMap"]["name"] == "workstation-ca"
+
+
+def test_the_client_waits_for_the_keycloak_crd_instead_of_failing_the_sync() -> None:
+    objs = render(crd=False)
+    assert ("StatefulSet", "matrix") in objs and ("KeycloakClient", "matrix") not in objs
 
 
 def test_each_appservice_consumer_writes_only_its_own_registration() -> None:

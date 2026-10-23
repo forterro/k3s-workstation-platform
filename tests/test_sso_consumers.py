@@ -14,12 +14,16 @@ from workstation_bootstrap import phases
 
 CHARTS = Path(__file__).resolve().parents[1] / "umbrella-charts"
 CA = "/etc/workstation-ca/ca-certificates.crt"
+# Argo CD passes the cluster's API versions to Helm; the keycloak app brings this one.
+KEYCLOAK_CLIENT_API = "v1.edp.epam.com/v1"
 
 pytestmark = pytest.mark.skipif(shutil.which("helm") is None, reason="helm not installed")
 
 
-def render(release: str, chart: str, sso: bool) -> dict[tuple[str, str], dict]:
+def render(release: str, chart: str, sso: bool, crd: bool = True) -> dict[tuple[str, str], dict]:
     args = ["helm", "template", release, str(CHARTS / chart), "--namespace", release]
+    if crd:
+        args += ["--api-versions", KEYCLOAK_CLIENT_API]
     if sso and (CHARTS / chart / "values-sso.yaml").exists():
         args += ["-f", str(CHARTS / chart / "values-sso.yaml")]
     out = subprocess.run(args, check=True, capture_output=True, text=True).stdout
@@ -29,6 +33,24 @@ def render(release: str, chart: str, sso: bool) -> dict[tuple[str, str], dict]:
 @pytest.mark.parametrize("chart", ["kube-mgmt/argocd", "observability/kube-prometheus-stack"])
 def test_no_keycloak_client_without_sso(chart: str) -> None:
     assert not [k for k in render("t", chart, sso=False) if k[0] == "KeycloakClient"]
+
+
+@pytest.mark.parametrize(
+    ("release", "chart", "client"),
+    [
+        ("argocd", "kube-mgmt/argocd", "argocd"),
+        ("headlamp", "kube-mgmt/headlamp", "headlamp"),
+        ("kube-prometheus-stack", "observability/kube-prometheus-stack", "grafana"),
+    ],
+)
+def test_sso_waits_for_the_keycloak_crd_instead_of_failing_the_sync(
+    release: str, chart: str, client: str
+) -> None:
+    # SSO switched on in the same commit as the keycloak app: the tool still syncs, and its
+    # client appears (self-heal) once the keycloak app has installed the CRD.
+    objs = render(release, chart, sso=True, crd=False)
+    assert objs and not [k for k in objs if k[0] == "KeycloakClient"]
+    assert ("KeycloakClient", client) in render(release, chart, sso=True)
 
 
 def test_argocd_signs_in_with_a_public_pkce_client_and_maps_admins() -> None:

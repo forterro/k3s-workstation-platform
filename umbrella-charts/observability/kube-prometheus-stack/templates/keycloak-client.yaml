@@ -1,12 +1,11 @@
-{{- if .Values.sso.enabled }}
+{{- /* Only once the keycloak app has installed the CRD: self-heal adds it then (no failed sync). */}}
+{{- if and .Values.sso.enabled (.Capabilities.APIVersions.Has "v1.edp.epam.com/v1") }}
 # Confidential client: the operator generates its secret (keycloak-client-<name>-secret, key
 # clientSecret) in this namespace, read by Grafana.
 apiVersion: v1.edp.epam.com/v1
 kind: KeycloakClient
 metadata:
   name: {{ .Values.sso.clientId }}
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   realmRef:
     kind: ClusterKeycloakRealm

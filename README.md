@@ -240,6 +240,12 @@ users:
     admin: true
 ```
 
+Usernames need at least 3 characters (a Keycloak rule): a shorter one fails the `keycloak` app
+render with an explicit message instead of never being created. Switching `sso.enabled` on an
+existing workstation needs no manual step: each tool adds its `KeycloakClient` once the `keycloak`
+app has installed the operator's CRDs (self-heal, within a few minutes), and syncs without it until
+then.
+
 A user is created once with a generated initial password (Secret `keycloak-user-<username>`) and
 must change it at the first sign-in; the operator never resets it afterwards. Admins manage the realm
 (users, groups, clients) at `https://sso.workstation.internal/admin/workstation/console/` with their
