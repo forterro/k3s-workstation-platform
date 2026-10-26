@@ -73,3 +73,34 @@ def test_a_username_keycloak_would_refuse_fails_the_render_instead_of_never_bein
     short = helm("sv")
     assert short.returncode != 0 and 'username "sv" is too short' in short.stderr
     assert helm("seb").returncode == 0
+
+
+def test_the_first_sign_in_password_change_is_asked_once_not_at_every_reconcile() -> None:
+    out = subprocess.run(
+        [
+            "helm",
+            "template",
+            "kc",
+            str(CHART),
+            "--namespace",
+            "keycloak",
+            "--set",
+            "users[0].username=seb",
+            "--set",
+            "users[0].email=seb@example.com",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    user = next(d for d in yaml.safe_load_all(out) if d and d["kind"] == "KeycloakRealmUser")[
+        "spec"
+    ]
+    # The operator re-applies requiredUserActions on every reconcile (even with addOnly), so
+    # UPDATE_PASSWORD there came back daily; a temporary password is set once, at creation.
+    assert "requiredUserActions" not in user
+    assert user["passwordSecret"] == {
+        "name": "keycloak-user-seb",
+        "key": "password",
+        "temporary": True,
+    }
