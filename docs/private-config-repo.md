@@ -91,7 +91,7 @@ IP, this private repo's own URL, and the optional layer components to deploy:
 ```yaml
 platform_repo_url: https://github.com/<org>/k3s-workstation-platform.git
 platform_revision: main
-loadbalancer_ip: 172.17.47.200
+loadbalancer_ip: 172.24.80.200   # a free address of your eth0 subnet (preflight checks it)
 
 # This workstation's private config repo. The bootstrap injects it into every component
 # below as the configRepoURL Helm parameter, so the public layer charts pick up this
@@ -112,10 +112,12 @@ extra_root_apps:
 
 A layer chart hosted in a private repository adds `private: true`: the bootstrap then seeds an
 ArgoCD repository credential for that `repo_url` too (secret `repo-<name>`, from the git credential
-helper, like the config repo).
+helper, like the config repo). Set `WORKSTATION_REPO_TOKEN` (a dedicated `read_repository` token) when
+running the bootstrap to use it instead of your personal credential for every private repository.
 
-The `loadbalancer_ip` must be a free address inside the WSL2 NAT subnet. The bootstrap prompts for it
-on first run if unset.
+The `loadbalancer_ip` must be a free address of the WSL2 NAT subnet (the `eth0` range), not routed
+through `docker0` or another bridge. The bootstrap prompts for it on first run if unset and
+suggests one; `preflight` flags a stored address that does not fit.
 
 ### 6. Add value overlays under `values/`
 

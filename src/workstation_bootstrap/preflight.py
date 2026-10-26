@@ -14,7 +14,9 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from . import console, tools
+import yaml
+
+from . import console, host, settings, tools
 
 
 class Status(Enum):
@@ -98,12 +100,40 @@ def _check_age_key() -> CheckResult:
     )
 
 
+def _check_inotify() -> CheckResult:
+    low = host.inotify_shortfall()
+    if not low:
+        return CheckResult("host:inotify", Status.OK, "limits sufficient")
+    detail = ", ".join(f"{k}={v} < {host.INOTIFY_LIMITS[k]}" for k, v in low.items())
+    return CheckResult("host:inotify", Status.WARN, f"{detail} (raised by bootstrap)")
+
+
+def _check_loadbalancer_ip() -> CheckResult:
+    name = "network:loadbalancer-ip"
+    if not settings.CONFIG_FILE.exists():
+        ip = None
+    else:
+        config = yaml.safe_load(settings.CONFIG_FILE.read_text(encoding="utf-8")) or {}
+        ip = config.get(settings.LOADBALANCER_IP_KEY)
+    suggestion = settings.suggested_loadbalancer_ip()
+    if not ip:
+        hint = f"; suggested: {suggestion}" if suggestion else ""
+        return CheckResult(name, Status.OK, f"not set (bootstrap asks for it{hint})")
+    problem = settings.loadbalancer_ip_problem(ip)
+    if problem:
+        hint = f"; free address: {suggestion} (set-loadbalancer-ip)" if suggestion else ""
+        return CheckResult(name, Status.FAIL, f"{problem}{hint}")
+    return CheckResult(name, Status.OK, ip)
+
+
 def collect() -> list[CheckResult]:
     """Run all preflight checks and return their results."""
     results: list[CheckResult] = []
     results.extend(_check_tools())
     results.append(_check_wsl())
     results.append(_check_systemd())
+    results.append(_check_inotify())
+    results.append(_check_loadbalancer_ip())
     results.append(_check_gpu())
     results.append(_check_age_key())
     return results

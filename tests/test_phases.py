@@ -466,6 +466,40 @@ def test_ensure_repo_credential_publishes_host_credential(monkeypatch):
     assert '"https://gitlab.example/og/private.git"' in applied[0] and '"tok-123"' in applied[0]
 
 
+def test_a_dedicated_repo_token_replaces_the_personal_git_credential(monkeypatch):
+    def no_helper(cmd, **kw):
+        raise AssertionError("the git credential helper must not be asked")
+
+    monkeypatch.setattr(phases.command, "run", no_helper)
+    monkeypatch.setenv(phases.REPO_TOKEN_ENV, "glpat-readonly")
+    monkeypatch.delenv(phases.REPO_USERNAME_ENV, raising=False)
+    monkeypatch.setattr(phases, "_apply_namespace", lambda ns, env: None)
+    applied: list[str] = []
+    monkeypatch.setattr(phases, "_kubectl_apply", lambda manifest, env: applied.append(manifest))
+
+    phases._ensure_repo_credential("https://gitlab.example/og/private.git", "repo-x", {})
+
+    assert '"glpat-readonly"' in applied[0] and 'username: "oauth2"' in applied[0]
+
+
+def test_host_limits_phase_writes_the_sysctl_dropin_only_when_limits_are_low(monkeypatch, tmp_path):
+    calls: list[str] = []
+    monkeypatch.setattr(phases, "_sudo_write", lambda path, content: calls.append(f"write {path}"))
+    monkeypatch.setattr(phases.command, "run", lambda cmd, **kw: calls.append(" ".join(cmd)))
+    context = phases.Context(root=tmp_path, dry_run=False)
+
+    monkeypatch.setattr(phases.host, "inotify_shortfall", lambda: {})
+    phases._phase_host_limits(context)
+    assert calls == []
+
+    monkeypatch.setattr(
+        phases.host, "inotify_shortfall", lambda: {"fs.inotify.max_user_instances": 128}
+    )
+    phases._phase_host_limits(context)
+    assert calls[0] == f"write {phases.host.SYSCTL_DROPIN}"
+    assert calls[1].endswith(f"sysctl -p {phases.host.SYSCTL_DROPIN}")
+
+
 def test_phase_root_app_upgrades_every_run_after_seeding_the_credential(monkeypatch, tmp_path):
     (tmp_path / "bootstrap" / "helm" / "root-app").mkdir(parents=True)
     config = {"config_repo_url": "https://git.example/cfg.git"}
