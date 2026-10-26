@@ -70,19 +70,22 @@ First it prepares the host:
 
 Then it runs the seed phases in order:
 
-1. Installs and starts k3s. Traefik and the built-in servicelb are disabled.
-2. Enables the NVIDIA GPU runtime for k3s when a GPU is present (installs the NVIDIA Container
+1. Raises the host inotify limits (`fs.inotify.max_user_instances=8192`,
+   `fs.inotify.max_user_watches=1048576`, drop-in `/etc/sysctl.d/90-k3s-workstation.conf`) when they
+   are lower: Ubuntu's default (128 instances) runs out under k3s and its pods ("Too many open files").
+2. Installs and starts k3s. Traefik and the built-in servicelb are disabled.
+3. Enables the NVIDIA GPU runtime for k3s when a GPU is present (installs the NVIDIA Container
    Toolkit and restarts k3s so containerd exposes the `nvidia` runtime). A no-op without a GPU.
-3. Installs cert-manager.
-4. Generates the local CA on first run and applies its ACME `ClusterIssuer`.
-5. Installs ArgoCD (with the KSOPS secrets plugin).
-6. Installs MetalLB and pins the Traefik LoadBalancer IP.
-7. Configures host-side split DNS so `*.workstation.internal` resolves from the host (installs a
+4. Installs cert-manager.
+5. Generates the local CA on first run and applies its ACME `ClusterIssuer`.
+6. Installs ArgoCD (with the KSOPS secrets plugin).
+7. Installs MetalLB and pins the Traefik LoadBalancer IP.
+8. Configures host-side split DNS so `*.workstation.internal` resolves from the host (installs a
    local dnsmasq forwarder and points systemd-resolved at it). See Local access below.
-8. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
-9. Installs or upgrades the ArgoCD root app-of-apps (`0-root-k3s-workstation`).
-10. Creates the layer root Applications declared in the consumer config (`extra_root_apps`).
-11. When SSO is enabled (`values/platform.yaml` of the config repo), lets the Kubernetes API trust
+9. Generates the local Grafana admin password on first run and applies the `grafana-admin` secret.
+10. Installs or upgrades the ArgoCD root app-of-apps (`0-root-k3s-workstation`).
+11. Creates the layer root Applications declared in the consumer config (`extra_root_apps`).
+12. When SSO is enabled (`values/platform.yaml` of the config repo), lets the Kubernetes API trust
     the workstation realm: a structured authentication config and a k3s drop-in under
     `/etc/rancher/k3s/`. k3s restarts only when the drop-in is added or removed (it rolls back if
     k3s does not come back); disabling SSO removes both.
@@ -201,9 +204,19 @@ extra_root_apps:
 Each entry points at a public layer chart (`repo_url` + `path`) and its ArgoCD `project`. On first
 run pass `--config-repo <url>` so the bootstrap clones it; afterwards it is read from `config.yaml`
 and kept in sync. The `extra-root-apps` phase seeds an ArgoCD repository credential for a private
-config repo (taken from the git credential helper), creates the `project`, and applies the layer
+config repo, creates the `project`, and applies the layer
 Application into the `argocd` namespace after the base root app, injecting `configRepoURL`. Both
 settings default to empty, so the base platform runs standalone.
+
+The ArgoCD repository credential is taken from the git credential helper, which usually holds your
+personal token. Prefer a dedicated read-only token (GitLab: personal, project or group access token
+with the `read_repository` scope only) and pass it to the bootstrap; it is then used for every
+private repository instead of the helper:
+
+```bash
+read -rsp "read_repository token: " WORKSTATION_REPO_TOKEN && export WORKSTATION_REPO_TOKEN
+uv run k3s-workstation-bootstrap bootstrap   # WORKSTATION_REPO_USERNAME defaults to oauth2
+```
 
 The base components read the config repo too. With a config repo set, the root app passes it to
 the platform chart, which reads `values/platform.yaml` (platform-wide switches) and gives every base
@@ -321,17 +334,19 @@ How access works:
 
 ### Set the LoadBalancer IP
 
-- The bootstrap prompts for it on first run.
-- Pick a free address inside the WSL2 NAT subnet, in the same range as the node `eth0` (for example
-  `172.17.47.200`).
-- The subnet can move after an HNS reset. Re-check the IP if resolution breaks.
+- The bootstrap prompts for it on first run and proposes a free address (`[...]`, Enter accepts it).
+- It must be a free address of the WSL2 NAT subnet, the range of the node `eth0`, and must not be
+  routed elsewhere: with Docker installed, `docker0` owns `172.17.0.0/16`, so an address there is
+  usually wrong. The bootstrap, `set-loadbalancer-ip` and `preflight` refuse such an address and
+  suggest one.
+- The subnet can move after an HNS reset. Re-check the IP if resolution breaks (`preflight`).
 
 ```bash
-# during bootstrap
-uv run k3s-workstation-bootstrap bootstrap --loadbalancer-ip 172.17.47.200
+# during bootstrap (example: eth0 is 172.24.80.5/20)
+uv run k3s-workstation-bootstrap bootstrap --loadbalancer-ip 172.24.80.200
 
 # later (re-pins the pool and restarts Traefik)
-uv run k3s-workstation-bootstrap set-loadbalancer-ip 172.17.47.200
+uv run k3s-workstation-bootstrap set-loadbalancer-ip 172.24.80.200
 ```
 
 ### Reach it from WSL
@@ -381,7 +396,7 @@ One-time, Windows-side setup. Nothing runs in the cluster for it.
   - Add a wildcard entry to `AcrylicHosts.txt`:
 
   ```text
-  172.17.47.200 *.workstation.internal
+  172.24.80.200 *.workstation.internal
   ```
 
   - Bind Acrylic to the loopback in `AcrylicConfiguration.ini`:
@@ -421,6 +436,19 @@ One-time, Windows-side setup. Nothing runs in the cluster for it.
     ```
 
   Once the Headlamp certificate is issued, open `https://headlamp.workstation.internal` from Windows.
+
+## Upgrade
+
+ArgoCD follows `main` for the components, but the bootstrap owns the seed (host settings, root
+app, layer roots). After pulling a new version, re-run it; it is idempotent:
+
+```bash
+git pull && uv sync
+uv run k3s-workstation-bootstrap bootstrap
+```
+
+An install older than #37 (the base Applications became a chart and `apps/` was removed) shows the
+root app in `ComparisonError` ("app path does not exist") until this re-run upgrades it.
 
 ## Reset the cluster
 

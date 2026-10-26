@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from . import command, console, gpu, helm, k3s, settings, tools
+from . import command, console, gpu, helm, host, k3s, settings, tools
 
 _STEP_CA_NAMESPACE = "step-ca"
 _STEP_CA_ISSUER_NAME = "step-ca-acme"
@@ -27,6 +27,8 @@ _STEP_CA_ACME_SERVER = "https://step-ca.step-ca.svc.cluster.local/acme/acme/dire
 _STEP_CA_INGRESS_CLASS = "traefik"
 
 _METALLB_NAMESPACE = "metallb-system"
+REPO_TOKEN_ENV = "WORKSTATION_REPO_TOKEN"
+REPO_USERNAME_ENV = "WORKSTATION_REPO_USERNAME"
 _METALLB_POOL_NAME = "workstation-pool"
 _METALLB_L2_NAME = "workstation-l2"
 _TRAEFIK_NAMESPACE = "traefik"
@@ -614,21 +616,29 @@ def _ensure_repo_credential(url: str | None, secret_name: str, env: dict[str, st
     """Publish the host git credential of ``url`` as an ArgoCD repository secret, if any."""
     if not url or not url.startswith("https://"):
         return
-    host = urllib.parse.urlparse(url).hostname
-    if not host:
+    host_name = urllib.parse.urlparse(url).hostname
+    if not host_name:
         return
-    filled = command.run(
-        ["git", "credential", "fill"],
-        input_text=f"protocol=https\nhost={host}\n\n",
-        capture=True,
-        check=False,
-    ).stdout
-    creds = dict(line.split("=", 1) for line in filled.splitlines() if "=" in line)
-    password = creds.get("password")
-    if not password:
-        console.sub(f"no stored git credential for {host}; assuming a public config repo")
-        return
-    username = creds.get("username") or "git"
+    # A dedicated read-only token (e.g. GitLab read_repository) instead of the personal credential.
+    token = os.environ.get(REPO_TOKEN_ENV)
+    if token:
+        username = os.environ.get(REPO_USERNAME_ENV) or "oauth2"
+        password = token
+        source = REPO_TOKEN_ENV
+    else:
+        filled = command.run(
+            ["git", "credential", "fill"],
+            input_text=f"protocol=https\nhost={host_name}\n\n",
+            capture=True,
+            check=False,
+        ).stdout
+        creds = dict(line.split("=", 1) for line in filled.splitlines() if "=" in line)
+        password = creds.get("password")
+        if not password:
+            console.sub(f"no stored git credential for {host_name}; assuming a public config repo")
+            return
+        username = creds.get("username") or "git"
+        source = "git credential helper"
     _apply_namespace("argocd", env)
     manifest = (
         "apiVersion: v1\n"
@@ -646,7 +656,7 @@ def _ensure_repo_credential(url: str | None, secret_name: str, env: dict[str, st
         f"  password: {json.dumps(password)}\n"
     )
     _kubectl_apply(manifest, env)
-    console.ok(f"ArgoCD credential ensured for {url} ({secret_name})")
+    console.ok(f"ArgoCD credential ensured for {url} ({secret_name}, from {source})")
 
 
 def _apply_appproject(name: str, env: dict[str, str]) -> None:
@@ -881,7 +891,26 @@ def _apply_seed_chart(
     )
 
 
+def _phase_host_limits(context: Context) -> None:
+    """Raise the inotify limits k3s, its pods and the agents' tools need (sysctl drop-in)."""
+    low = host.inotify_shortfall()
+    if not low:
+        console.sub("inotify limits already sufficient")
+        return
+    if context.dry_run:
+        console.sub(f"would write {host.SYSCTL_DROPIN}")
+        return
+    _sudo_write(host.SYSCTL_DROPIN, host.sysctl_dropin())
+    command.run(_sudo(["sysctl", "-p", str(host.SYSCTL_DROPIN)]), capture=True)
+    console.ok(f"inotify limits raised ({host.SYSCTL_DROPIN})")
+
+
 PHASE_PLAN: tuple[Phase, ...] = (
+    Phase(
+        "host-limits",
+        "Raise the host inotify limits (Ubuntu defaults run out under k3s)",
+        _phase_host_limits,
+    ),
     Phase("k3s", "Install and start k3s (flannel CNI, standard NetworkPolicy)", _phase_k3s),
     Phase(
         "gpu-runtime",

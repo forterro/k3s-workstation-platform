@@ -12,7 +12,7 @@ from pathlib import Path
 
 import yaml
 
-from . import command, console
+from . import command, console, host
 
 CONFIG_DIR = Path.home() / ".k3s-workstation-platform"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
@@ -94,17 +94,33 @@ def _valid_ipv4(value: str) -> bool:
     return True
 
 
+def loadbalancer_ip_problem(ip: str) -> str | None:
+    """Why ``ip`` cannot be the LoadBalancer IP on this host, or None (also when unknowable)."""
+    if not _valid_ipv4(ip):
+        return f"'{ip}' is not a valid IPv4 address"
+    network = host.host_network()
+    return host.loadbalancer_ip_problem(ip, network) if network else None
+
+
+def suggested_loadbalancer_ip() -> str | None:
+    network = host.host_network()
+    return host.suggest_loadbalancer_ip(network) if network else None
+
+
 def _prompt_loadbalancer_ip() -> str:
     """Interactively ask for the fixed Traefik LoadBalancer IP served by MetalLB."""
+    suggestion = suggested_loadbalancer_ip()
     console.info(
-        "Traefik needs a fixed LoadBalancer IP served by MetalLB. Pick a free address inside the "
-        "WSL2 NAT subnet (the same range as the node eth0 address), for example 172.17.47.200."
+        "Traefik needs a fixed LoadBalancer IP served by MetalLB: a free address of the WSL2 NAT "
+        "subnet (the node eth0 range), outside docker0 and other bridges."
     )
+    prompt = "Traefik LoadBalancer IP" + (f" [{suggestion}]" if suggestion else "") + ": "
     while True:
-        raw = input("Traefik LoadBalancer IP: ").strip()
-        if _valid_ipv4(raw):
+        raw = input(prompt).strip() or (suggestion or "")
+        problem = loadbalancer_ip_problem(raw)
+        if problem is None:
             return raw
-        console.warn(f"'{raw}' is not a valid IPv4 address; try again")
+        console.warn(f"{problem}; try again")
 
 
 def ensure_loadbalancer_ip(
@@ -117,8 +133,11 @@ def ensure_loadbalancer_ip(
     """
     config = load_or_init_config(root)
     if override is not None:
-        if not _valid_ipv4(override):
-            raise ValueError(f"invalid IPv4 address: {override}")
+        problem = loadbalancer_ip_problem(override)
+        if problem:
+            suggestion = suggested_loadbalancer_ip()
+            hint = f" (free address of the subnet: {suggestion})" if suggestion else ""
+            raise ValueError(f"invalid LoadBalancer IP: {problem}{hint}")
         config[LOADBALANCER_IP_KEY] = override
         _save_config(config)
         return override

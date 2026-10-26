@@ -1,3 +1,4 @@
+import ipaddress
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,29 @@ from workstation_bootstrap import settings
 def _redirect_config(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(settings, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(settings, "CONFIG_FILE", tmp_path / "config.yaml")
+
+
+@pytest.fixture(autouse=True)
+def _no_host_network(monkeypatch):
+    # The LoadBalancer IP checks read the machine's routes; these tests must not depend on them.
+    monkeypatch.setattr(settings.host, "host_network", lambda: None)
+
+
+def test_ensure_loadbalancer_ip_override_outside_the_subnet_fails_with_a_suggestion(
+    monkeypatch, tmp_path
+):
+    _redirect_config(monkeypatch, tmp_path)
+    network = settings.host.HostNetwork(
+        "eth0",
+        (ipaddress.IPv4Interface("172.24.80.5/20"),),
+        ipaddress.IPv4Address("172.24.80.1"),
+    )
+    monkeypatch.setattr(settings.host, "host_network", lambda: network)
+    monkeypatch.setattr(settings.host, "route_device", lambda ip: "eth0")
+    monkeypatch.setattr(settings.host, "neighbours", lambda: set())
+
+    with pytest.raises(ValueError, match=r"outside the eth0 subnet.*172\.24\.80\.200"):
+        settings.ensure_loadbalancer_ip(tmp_path, override="172.17.47.200")
 
 
 def test_load_or_init_config_detects_origin(monkeypatch, tmp_path):
