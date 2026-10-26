@@ -90,12 +90,13 @@ spec:
   firstName: {{ .firstName | default "" | quote }}
   lastName: {{ .lastName | default "" | quote }}
   enabled: true
-  # Created once: the operator never resets the password or the profile afterwards.
+  # The operator still updates existing users (and re-applies requiredUserActions) on every
+  # reconcile despite addOnly: the first-login change comes from a temporary password, set once.
   reconciliationStrategy: addOnly
   passwordSecret:
     name: keycloak-user-{{ .username }}
     key: password
-  requiredUserActions: [UPDATE_PASSWORD]
+    temporary: true
   {{- if .admin }}
   groups: [{{ $.Values.adminGroup }}]
   {{- end }}
