@@ -40,7 +40,7 @@ web:
   brand: Workstation chat
   image:
     repository: vectorim/element-web
-    tag: v1.12.32
+    tag: v1.12.33
     pullPolicy: IfNotPresent
   resources:
     requests: {cpu: 10m, memory: 32Mi}
