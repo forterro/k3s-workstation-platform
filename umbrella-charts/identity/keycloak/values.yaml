@@ -33,7 +33,7 @@ users: []
 # Idempotent PreSync Job that creates the generated Secrets once (Keycloak bootstrap admin and the
 # users' initial passwords) and never rotates them.
 secretsJob:
-  image: alpine/k8s:1.37.1
+  image: alpine/k8s:1.37.2
 
 postgres:
   clusterName: keycloak-pg
