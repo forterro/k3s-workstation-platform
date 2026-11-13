@@ -11,12 +11,11 @@ dashboards:
   enabled: true
 
 # Values passed to the upstream Traefik subchart. Exposed through MetalLB (L2 mode): the service is
-# annotated with the MetalLB pool name so it always gets the fixed workstation address handed out by
+# a LoadBalancer (chart default) annotated with the MetalLB pool name so it always gets the fixed workstation address handed out by
 # the single-address pool the seed applies (config.yaml loadbalancer_ip). The chart already exposes
 # the web (80) and websecure (443, TLS) entry points by default.
 traefik:
   service:
-    type: LoadBalancer
     annotations:
       metallb.io/address-pool: workstation-pool
   # Global HTTP-to-HTTPS redirect: every request on the web (80) entry point is
