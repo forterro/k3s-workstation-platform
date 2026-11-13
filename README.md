@@ -325,7 +325,9 @@ How access works:
 - Every service lives under `*.workstation.internal`.
 - Services share one Traefik LoadBalancer IP and differ only by HTTP host. One wildcard record
   covers them all.
-- servicelb (klipper) is disabled. MetalLB (L2 mode) pins Traefik to a fixed IP.
+- servicelb (klipper) is disabled. MetalLB (L2 mode) pins Traefik to a fixed IP. Its BGP backend
+  (frr-k8s) is off: it is not needed in L2 and its host-network status cleaner cannot roll out on
+  a single node.
 - The IP is stored as `loadbalancer_ip` in `~/.k3s-workstation-platform/config.yaml`.
 - In-cluster, CoreDNS already resolves the domain to Traefik (this covers the ACME http-01
   challenge).

@@ -106,6 +106,9 @@ imperatively (a Python seed) and then hands off to ArgoCD (app-of-apps) for GitO
 - Do NOT expose an in-cluster DNS on a LoadBalancer port 53: k3s servicelb (klipper) grabs node port
   53 and breaks the WSL distribution's DNS. A host-facing DNS LoadBalancer was added then reverted
   (commits 47073c5 / 07867c4). Host-side resolution must be done on Windows, not in the cluster.
+- MetalLB `frrk8s.enabled: false` (L2 only): the frr-k8s status cleaner is a hostNetwork Deployment
+  whose rolling update stays Pending forever on a single node (MetalLB 0.16.2 bump, metallb app
+  Degraded). Do not re-enable frr-k8s unless BGP is needed.
 
 ## Host access to `*.workstation.internal`
 
