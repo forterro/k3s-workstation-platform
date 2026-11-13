@@ -5,3 +5,8 @@
 metallb:
   crds:
     enabled: true
+  # L2 only: the frr-k8s backend serves BGP, which the workstation does not use. Its status cleaner
+  # is a hostNetwork Deployment whose rolling update deadlocks on a single node (the new pod waits
+  # for the host port the old one holds).
+  frrk8s:
+    enabled: false
