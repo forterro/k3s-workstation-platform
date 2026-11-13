@@ -450,6 +450,16 @@ uv run k3s-workstation-bootstrap bootstrap
 An install older than #37 (the base Applications became a chart and `apps/` was removed) shows the
 root app in `ComparisonError` ("app path does not exist") until this re-run upgrades it.
 
+Keycloak operator 1.35 to 1.36 (#50): the first reconcile of the new operator sets every local user
+(`keycloak.users`) back to its initial password, once (it now records a fingerprint of the password
+Secret and saw none). Sign in with the initial password, which Keycloak asks you to change right away:
+
+```bash
+kubectl -n keycloak get secret keycloak-user-<username> -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
+The following reconciles keep the password you choose.
+
 ## Reset the cluster
 
 Remove k3s and its cluster from the distribution, without discarding the distribution:
