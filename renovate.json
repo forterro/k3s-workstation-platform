@@ -38,13 +38,17 @@
       "matchManagers": ["pyenv"],
       "groupName": "python",
       "groupSlug": "python"
+    },
+    {
+      "description": "Re-vendor the umbrella dependencies (Chart.lock + charts/*.tgz) after a Helm chart bump only: Renovate installs helm for the helmv3 manager alone, so on an image tag update `make deps` fails with `helm: not found`.",
+      "matchManagers": ["helmv3"],
+      "postUpgradeTasks": {
+        "commands": ["make deps"],
+        "fileFilters": ["**/Chart.lock", "**/charts/*.tgz"],
+        "executionMode": "branch"
+      }
     }
   ],
-  "postUpgradeTasks": {
-    "commands": ["make deps"],
-    "fileFilters": ["**/Chart.lock", "**/charts/*.tgz"],
-    "executionMode": "branch"
-  },
   "helmv3": {
     "managerFilePatterns": ["/(^|/)Chart\\.yaml$/"]
   },
