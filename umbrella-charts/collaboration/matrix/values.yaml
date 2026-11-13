@@ -14,7 +14,7 @@ issuer: step-ca-acme
 homeserver:
   image:
     repository: ghcr.io/matrix-construct/tuwunel
-    tag: v1.9.4
+    tag: v2.0.0
     pullPolicy: IfNotPresent
   storage:
     size: 5Gi
