@@ -97,7 +97,7 @@ def neighbours() -> set[str]:
 def loadbalancer_ip_problem(
     ip: str,
     network: HostNetwork,
-    route_dev: Callable[[str], str | None] = route_device,
+    route_dev: Callable[[str], str | None] | None = None,
 ) -> str | None:
     """Explain why ``ip`` cannot be the Traefik LoadBalancer IP, or None when it can.
 
@@ -113,7 +113,7 @@ def loadbalancer_ip_problem(
         return f"{ip} is the network or broadcast address of {subnet}"
     if address == network.gateway or any(address == i.ip for i in network.interfaces):
         return f"{ip} is already used by the host or its gateway"
-    dev = route_dev(ip)
+    dev = (route_dev or route_device)(ip)
     if dev and dev != network.interface:
         return f"{ip} is routed through {dev}, not {network.interface} (overlapping subnet)"
     return None
@@ -121,7 +121,7 @@ def loadbalancer_ip_problem(
 
 def suggest_loadbalancer_ip(
     network: HostNetwork,
-    route_dev: Callable[[str], str | None] = route_device,
+    route_dev: Callable[[str], str | None] | None = None,
     taken: set[str] | None = None,
 ) -> str | None:
     """A free address of the default-route subnet: offset 200 and up, then lower."""
