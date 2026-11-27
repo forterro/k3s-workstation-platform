@@ -14,7 +14,7 @@ issuer: step-ca-acme
 homeserver:
   image:
     repository: ghcr.io/matrix-construct/tuwunel
-    tag: v2.0.0
+    tag: v2.1.0
     pullPolicy: IfNotPresent
   storage:
     size: 5Gi
@@ -40,7 +40,7 @@ web:
   brand: Workstation chat
   image:
     repository: vectorim/element-web
-    tag: v1.12.35
+    tag: v1.12.36
     pullPolicy: IfNotPresent
   resources:
     requests: {cpu: 10m, memory: 32Mi}
